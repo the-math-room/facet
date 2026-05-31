@@ -1,121 +1,235 @@
 # The Facet Theory
 
-Facet is a theory of interactive user interfaces as **values before effects**.
+Facet is a **denotational UI protocol**.
 
-A Facet UI is not a component instance, a DOM subtree, a lifecycle object, or an application container. It is a denotation: a finite description of interface structure together with the type of events that structure may emit.
+It exists to make interactive interface meaning portable across tools, runtimes, renderers, testing systems, and companion packages.
+
+A Facet UI is not a component instance, a DOM subtree, a lifecycle object, a framework application, or a renderer-owned structure. It is a value: a finite description of interface structure together with the type of events that structure may emit.
 
 Facet separates:
 
 ```text
-meaning → projection → representation → interpretation → interaction
+meaning → projection → denotation → representation → interpretation → interaction
 ```
 
-Application code owns **meaning**: domain state, domain events, transitions, invariants, and effects.
+Application code owns meaning: domain state, domain events, transitions, invariants, and effects.
 
-Facet owns the small language needed to **project** that meaning into UI values, represent those values explicitly, and interpret them through chosen targets.
+Facet provides a public surface for projecting that meaning into UI denotations, translating event vocabularies, preserving explicit identity, inspecting or representing UI values, and interpreting those values through chosen targets.
 
-The core claim is:
+The central claim is:
 
-> Interactive UI can be described as pure, compositional data; events can be treated as typed outputs; rendering can be treated as explicit interpretation; and effects can be pushed to the edge.
+> Interactive UI can be described as pure, compositional, event-emitting data, and the ecosystem around that data can be made of replaceable parts.
+
+Facet is therefore not primarily a rendering technique. It is a small protocol for cooperation between independent UI tools.
 
 ---
 
-## 1. UI is denotation
+## 1. Facet is not an application owner
 
-A UI value describes what may be shown and what may be emitted.
+Facet should not own the whole application.
 
-It does not own state.  
-It does not fetch data.  
-It does not schedule work.  
-It does not hide effects.  
+It should not require one central runtime to own:
+
+```text
+application state
+domain transitions
+effects
+routing
+data fetching
+forms
+validation
+styling
+animation
+subscriptions
+testing
+browser observations
+foreign widgets
+deployment model
+```
+
+Those things may exist around Facet. They may produce Facet UI values. They may consume Facet events. They may interpret Facet denotations. They may provide optional runtime shells or companion theories.
+
+But they should not require Facet core to become their owner.
+
+Facet’s role is smaller:
+
+> Facet owns the public handoffs by which independent parts can cooperate.
+
+The important boundaries are:
+
+```text
+application meaning → UI denotation
+UI denotation → representation
+UI denotation → interpretation target
+target event → typed application event
+target observation → typed application event
+application event → state transition
+effect description → effect interpreter
+foreign configuration → imperative island
+imperative island event → typed event
+```
+
+Facet should make these handoffs explicit.
+
+---
+
+## 2. UI is denotation
+
+A value of type:
+
+```text
+Ui<Event>
+```
+
+describes what may be shown and what may be emitted.
+
+It does not own state.
+It does not fetch data.
+It does not schedule work.
+It does not perform effects.
 It does not depend on a renderer to have meaning.
+It does not require a particular runtime to be useful.
 
 A UI value is meaningful before it is mounted.
 
-The same UI denotation may be interpreted as live DOM, static HTML, normalized JSON, test data, or some other target. These interpretations may differ operationally, but they should agree on the abstract structure and event behavior of the UI.
+The same UI denotation may be interpreted as live DOM, static HTML, normalized data, test structure, serialized representation, or another target. These interpretations may differ operationally, but they should preserve the abstract structure and event behavior of the UI value.
 
-Facet is therefore not primarily a rendering technique. It is a way of making UI meaning explicit before rendering begins.
+This is the first principle of Facet:
+
+> UI is data before it is behavior in a target.
 
 ---
 
-## 2. The core language is small
+## 3. Events are outputs
 
-Facet's core language consists only of the operations needed to describe UI composition:
+A Facet UI may emit events. It does not handle them.
+
+Event handling belongs to the application transition function, not to the UI denotation itself.
+
+A reusable view may speak in a local event vocabulary. A parent may translate that vocabulary into a broader event vocabulary.
+
+```text
+Ui<ChildEvent> + (ChildEvent → ParentEvent) = Ui<ParentEvent>
+```
+
+This is one of the most important composition rules in Facet.
+
+It means a child view does not need to know the application that uses it. It emits local events. The parent maps those events upward. The application decides what they mean.
+
+Facet therefore treats interaction as a typed output surface rather than hidden control flow.
+
+---
+
+## 4. Meaning belongs to the application
+
+Facet distinguishes application meaning from UI description.
+
+Application meaning includes things such as:
+
+```text
+State
+Event
+Transition
+Invariant
+Effect
+Policy
+Resource
+Domain model
+```
+
+A typical application may choose a shape like:
+
+```text
+view       : State → Ui<Event>
+update     : State × Event → State × Effect[]
+runEffect  : Effect × Dispatch<Event> → void
+```
+
+Facet may provide tools that make this shape convenient, but this shape is not the core UI denotation itself.
+
+The core distinction is:
+
+```text
+application state decides what is true
+Facet UI describes what can be presented
+events report what the interface emitted
+application transitions decide what happens next
+effects are interpreted at the edge
+```
+
+Facet does not own application meaning. It gives application meaning a portable interface description.
+
+---
+
+## 5. The core language is small
+
+Facet’s core language should contain only the primitive concepts needed to describe denotational UI.
+
+The essential vocabulary is:
 
 ```text
 empty     — the absent UI
 text      — textual content
 node      — tagged structure with attributes and children
 concat    — ordered composition
-keyed     — stable identity annotation
+keyed     — explicit stable identity annotation
 memo      — interpretation hint
 mapEvent  — event translation
 ```
 
-These are not convenience helpers. They are the primitive vocabulary of the theory.
+These are not merely convenience helpers. They are the minimal public vocabulary for describing UI denotations and how event surfaces compose.
 
-Everything else should be one of:
+Everything else should usually be one of:
 
 ```text
-a derived authoring convenience,
-a concrete representation,
-an interpreter,
-a testing tool,
-an optional interaction shell,
-or a companion theory at the boundary.
+a derived authoring vocabulary
+a concrete representation
+an interpreter
+a testing tool
+an optional runtime shell
+a boundary protocol
+a companion package
+an escape hatch
 ```
 
-If a feature cannot be explained in terms of those roles, it does not belong in the core theory.
+This distinction matters because Facet wants a Unix-like ecosystem: small parts, clear surfaces, replaceable implementations, and shared representations.
+
+The core should be small enough that other people can implement against it.
 
 ---
 
-## 3. Composition is structural
+## 6. Composition is structural
 
-UI fragments compose by concatenation.
-
-`empty` is the identity of composition. Grouping does not change meaning. A fragment may be built in pieces without changing the denotation it represents.
-
-These are equivalent in meaning:
+UI fragments compose by ordered concatenation.
 
 ```text
-concat([])
-empty
+concat([]) = empty
 
-concat([empty, ui])
-ui
+concat([empty, ui]) = ui
 
-concat([ui, empty])
-ui
+concat([ui, empty]) = ui
 
 concat([a, concat([b, c])])
-concat([concat([a, b]), c])
+  = concat([concat([a, b]), c])
 ```
-
-This gives Facet its first basic law:
-
-> UI structure forms an ordered compositional language with `empty` as identity.
 
 Order matters. Grouping does not.
 
+This means a UI fragment may be built in pieces without changing the denotation it represents.
+
+Conditionals, lists, fragments, and authoring helpers can elaborate into this structural composition without becoming new core concepts.
+
+The principle is:
+
+> UI structure forms an ordered compositional language with `empty` as identity.
+
 ---
 
-## 4. Events are outputs, not control flow
+## 7. Event translation is structural too
 
-A UI value may emit events. It does not handle them.
+Event mapping changes the vocabulary of emitted events without changing the underlying UI structure.
 
-Event handling belongs to the application transition function, not to the UI denotation itself.
-
-A child UI may speak in a local event vocabulary. A parent may translate that vocabulary into its own with `mapEvent`.
-
-```text
-Ui<A> + (A → B) = Ui<B>
-```
-
-This is the central composition rule for interaction.
-
-It means reusable views do not need to know the applications that use them. They emit local events; parents translate those events upward.
-
-The laws are:
+The basic laws are:
 
 ```text
 mapEvent(ui, identity) = ui
@@ -124,81 +238,147 @@ mapEvent(mapEvent(ui, f), g)
   = mapEvent(ui, g ∘ f)
 ```
 
-So event mapping changes the emitted vocabulary, not the underlying UI meaning.
+This gives Facet a disciplined model of reusable views.
 
-This gives the second basic law:
+A child package can expose:
 
-> Events are functorial over UI denotations.
+```text
+State → Ui<ChildEvent>
+```
+
+A parent can use it by supplying:
+
+```text
+ChildEvent → ParentEvent
+```
+
+No hidden global runtime is required.
+No child needs to know its parent.
+No package needs to seize control of the application.
+
+The principle is:
+
+> Event vocabularies compose by explicit translation.
 
 ---
 
-## 5. Identity is explicit, not ambient
+## 8. Identity is explicit
 
 `keyed` attaches stable identity to a child.
 
 Identity is not discovered from component instances, hooks, call order, closure identity, or hidden runtime position. It is explicitly present in the denotation.
 
-A renderer may use keys to preserve interpreted substructure across sibling reordering. But keys are annotations on the UI value; they are not a separate lifecycle mechanism.
+A renderer may use keys to preserve interpreted substructure across sibling reordering or replacement. But keys are annotations on UI values; they are not a separate lifecycle model.
 
-The theory says:
+The principle is:
 
 > Preservation is permitted only where identity is explicit.
 
-This keeps identity from becoming ambient runtime magic. A child either has a stable identity in the denotation or it does not.
+This lets interpreters optimize and preserve target-side objects without turning identity into ambient runtime magic.
 
 ---
 
-## 6. Optimization is not meaning
+## 9. Optimization is not meaning
 
 `memo(token, child)` is denotationally equivalent to `child`.
-
-A renderer may use the token to preserve or skip work. But memoization does not add structure, state, behavior, or lifecycle.
 
 ```text
 memo(token, child) = child
 ```
 
-This is an important boundary.
+A renderer may use the token to skip work, cache an interpretation, or preserve target-side structure. But memoization does not add UI structure, state, behavior, lifecycle, or meaning.
 
-Facet does not let optimization become semantics.
+A memoized UI and an unmemoized UI describe the same interface.
 
-A memoized UI and an unmemoized UI mean the same thing. They may differ in how an interpreter updates an existing target, but they do not differ as denotations.
+They may differ in how an interpreter performs work. They should not differ in what the UI denotes.
+
+The principle is:
+
+> Optimization may guide interpretation, but it must not become semantics.
 
 ---
 
-## 7. Rendering is interpretation
+## 10. Representation is a public surface
+
+A Facet UI value should be representable.
+
+A representation is not necessarily the same thing as the internal implementation of a UI value. It is a public way to inspect, compare, serialize, normalize, test, or interpret the denotation.
+
+Representation surfaces may support tools such as:
+
+```text
+test renderers
+tree inspectors
+serializers
+debuggers
+diff tools
+normalizers
+alternative renderers
+static analyzers
+documentation generators
+```
+
+This is part of Facet’s ecosystem goal.
+
+If independent tools are going to cooperate, they need stable ways to observe the same denotation.
+
+The principle is:
+
+> A UI denotation should be portable enough for tools other than its original author to understand.
+
+Representation is therefore a serious compatibility commitment. Once a representation is public, other tools may build on it.
+
+---
+
+## 11. Rendering is interpretation
 
 A renderer is an interpreter from UI denotations into a target.
 
-The renderer owns mounting, patching, unmounting, event delegation, reconciliation, and target-specific mutation.
+A DOM renderer interprets UI into live browser nodes.
+A string renderer interprets UI into static markup.
+A test renderer interprets UI into inspectable test data.
+A custom renderer may interpret UI into another target.
 
-The renderer does not own application state.  
-It does not own domain transitions.  
-It does not own effects.  
-It does not define the meaning of the UI.
+The renderer owns target-specific work:
 
-It merely interprets a value that already has meaning.
+```text
+mounting
+patching
+unmounting
+event delegation
+target mutation
+reconciliation
+resource attachment
+target-specific preservation
+```
 
-This gives another law-shaped boundary:
+The renderer does not own application meaning.
 
-> Renderers may optimize interpretation, but must preserve denotation.
+It does not own domain transitions.
+It does not own effects.
+It does not define what the UI means.
+It realizes a value that already has meaning.
 
-A DOM renderer may patch nodes in place. A string renderer may produce static HTML. A test renderer may produce normalized JSON. These are different interpretations of the same source term.
+The principle is:
+
+> Renderers are replaceable interpreters of the same denotation.
+
+A renderer may be official, third-party, experimental, specialized, server-side, browser-side, native, test-only, or application-specific. Facet’s theory should make room for this.
 
 ---
 
-## 8. HTML is one vocabulary, not the core
+## 12. HTML is a vocabulary, not the core
 
-HTML support is a projection vocabulary over the core algebra.
+HTML support is a derived authoring vocabulary over the core denotation.
 
-HTML tags and attributes are not fundamental to Facet. They are one useful language instantiated over the abstract UI algebra.
+HTML tags and attributes are useful. They are not the foundation of Facet.
 
-This matters because the core should not know about:
+The core should not need to know about:
 
 ```text
-DOM
+DOM APIs
 HTML strings
-browser events
+browser event loops
 CSS
 forms
 resources
@@ -207,17 +387,13 @@ animation
 framework lifecycle
 ```
 
-The HTML layer may provide ergonomic helpers, but those helpers should elaborate into the small core language.
-
-So:
+An HTML helper such as:
 
 ```text
 button(...)
 ```
 
-is not a primitive theoretical concept.
-
-It is a derived term over:
+should elaborate into the core language:
 
 ```text
 node(tag, attributes, children)
@@ -225,116 +401,164 @@ node(tag, attributes, children)
 
 plus attributes, event decoders, and event mapping.
 
----
+The principle is:
 
-## 9. Testing is interpretation without the browser
+> HTML is one vocabulary for producing Facet denotations.
 
-Testing should inspect the same denotation that rendering consumes.
-
-A test should not need a browser when the property being tested is structural or event-decoding behavior. It should be able to query the UI value directly or through a normalized test interpretation.
-
-This follows from the core theory:
-
-> If UI is a value, then testing can be a pure interpretation of that value.
-
-A browser is needed only for browser semantics.
-
-It is not needed to know whether a denotation contains a button, text, attributes, children, keys, or an event decoder that maps an input event into a domain event.
+This keeps the door open for other vocabularies and other targets.
 
 ---
 
-## 10. Interaction is an optional shell
+## 13. Testing is interpretation without the browser
 
-The application loop is not the UI theory itself.
+If UI is a value, then many UI tests can inspect that value directly or through a normalized interpretation.
 
-Facet may provide a small optional runtime, but the runtime is only a shell around the denotational core:
+A browser is necessary for browser semantics.
+It is not necessary for every structural property.
+
+A test should be able to ask whether a denotation contains:
+
+```text
+text
+nodes
+attributes
+children
+keys
+event decoders
+foreign boundaries
+```
+
+without mounting a browser, when the property being tested is denotational.
+
+The principle is:
+
+> Testing can be a pure interpretation of UI values.
+
+This does not eliminate browser tests. It classifies them. Browser tests are needed when the property under test belongs to the browser or another concrete target.
+
+---
+
+## 14. Interaction is an optional shell
+
+Facet may provide a runtime, but the runtime is a shell around the denotational core.
+
+A typical runtime connects:
 
 ```text
 init → view → mount
 dispatch → update → view → patch → run effects
 ```
 
-The intended application shape is:
+This is useful, but it is not what a UI value is.
 
-```text
-State → Ui<Event>
-State × Event → State × Effect[]
-Effect × Dispatch<Event> → void
-```
+The runtime exists to connect pure views, pure transitions, effect descriptions, target events, and interpreters.
 
-This keeps the main program split into three parts:
+The principle is:
 
-```text
-view       — pure projection from state to UI
-update     — pure transition from state and event to next state plus effects
-runEffect  — impure interpretation of effect descriptions
-```
+> Runtime is coordination, not ownership.
 
-The runtime exists to connect these pieces. It should not absorb application architecture into Facet.
+An application should be able to use Facet denotations without adopting a single blessed runtime model for everything else.
 
 ---
 
-## 11. Effects are outside the denotation
+## 15. Effects live at the edge
 
-Effects are values until interpreted.
+Effects are not part of the UI denotation.
 
-A Facet UI does not perform effects.  
-An update function does not perform effects.  
-An update function may describe effects.  
-Only an effect interpreter performs them.
+A Facet UI does not perform effects.
 
-This means fetching, persistence, timers, logging, navigation, subscriptions, and external mutation are not core UI concepts.
+An update function may describe effects.
+An effect interpreter may perform effects.
+A runtime may coordinate effect interpretation.
+A companion package may define effect descriptions.
 
-They may be modeled by applications or companion packages, but they should remain outside the UI denotation.
+But the UI value itself remains pure.
+
+Effects include:
+
+```text
+fetching
+persistence
+timers
+logging
+navigation
+subscriptions
+external mutation
+imperative commands
+```
+
+The principle is:
+
+> Effects are values until interpreted, and interpretation happens at the edge.
+
+This allows effect systems to be replaced, tested, modeled, or omitted without changing what a UI denotation is.
 
 ---
 
-## 12. Foreign regions are explicit boundaries
+## 16. Foreign regions are explicit boundaries
 
-Some interface regions are not denotational internally.
+Some interface regions are not internally denotational.
 
-A rich text editor, map, charting engine, video player, canvas, WebGL scene, code editor, or imperative widget may own internal state, perform effects, and manage lifecycle.
+Examples include:
 
-Facet should not pretend these systems are ordinary pure UI values.
+```text
+rich text editors
+maps
+charts
+video players
+canvas regions
+WebGL scenes
+code editors
+imperative widgets
+third-party embeds
+```
 
-Instead, such systems belong at explicit boundaries:
+These systems may own internal state, lifecycle, mutation, scheduling, resources, and effects.
 
-> A Facet UI may designate an opaque foreign region whose identity, configuration, and event surface are described denotationally, while its internal behavior is owned by a foreign interpreter.
+Facet should not pretend their internals are ordinary pure UI values.
 
-At the boundary:
+Instead, Facet should provide an explicit boundary shape:
 
 ```text
 configuration flows in
-events flow out
+typed events flow out
 identity is explicit
 lifecycle is interpreter-owned
-internal state is opaque to Facet
+internal state is opaque
 ```
 
-The core theory should acknowledge foreign regions, but not absorb their internal models.
+The principle is:
 
-The companion theory of foreign regions should answer questions such as:
+> Imperative islands are allowed, but the boundary must be honest.
 
-```text
-How is the foreign object mounted?
-How is it updated?
-When is it preserved?
-When is it destroyed?
-How are external events decoded?
-How are configuration changes applied?
-```
-
-Facet core should only insist that the boundary is explicit and law-respecting.
+A foreign region is not a failure of the theory. It is a place where the theory names the handoff rather than hiding it.
 
 ---
 
-## 13. Target observations return as events
+## 17. Target observations return as events
 
 Some facts are not denotational.
 
-Layout, focus, selection, viewport geometry, scroll position, media state, text measurement, element size, and browser-managed input state are facts of an interpretation target.
+They exist only after a UI has been interpreted into a target.
 
-They do not exist inside a pure UI value.
+Examples include:
+
+```text
+layout
+focus
+selection
+viewport geometry
+scroll position
+text measurement
+element size
+media state
+browser-managed input state
+intersection
+resize
+overflow
+```
+
+These are not facts inside a pure UI value.
 
 The clean loop is:
 
@@ -342,116 +566,131 @@ The clean loop is:
 Interpret → Observe → Emit Event → Update State → Re-project UI
 ```
 
-Target-derived facts may enter the application only as events emitted by an interpreter, observer, or driver. Once stored in application state, they may influence the next UI denotation.
+A target observer may report that an element has a certain size.
+The application may store that fact in state.
+The next view may project a different UI because of that state.
 
-For example:
+The principle is:
 
-```text
-The browser observes that a dropdown would overflow.
-The observation emits a typed event.
-The application records that fact in state.
-The next view projects the dropdown above the input.
-```
+> Target-derived facts become meaningful to the application only when returned as events.
 
-This keeps layout-driven behavior explicit without putting layout into the core UI language.
-
-Facet core should not grow primitives such as:
-
-```text
-measureWidth
-getBoundingClientRect
-isOverflowing
-scrollTop
-focusTrap
-resizeObserver
-intersectionObserver
-```
-
-Those belong to companion theories of observation, focus, selection, layout, or browser drivers.
-
-The core principle is:
-
-> Target facts are not UI denotation; they become meaningful only when returned to the application as events.
+This keeps layout-driven, focus-driven, and measurement-driven behavior explicit without putting target facts into the core UI language.
 
 ---
 
-## 14. Facet is not a framework of ownership
+## 18. Packages are ecosystem roles
 
-Facet should not own the application.
+Facet is intended to support a Unix-like ecosystem of small cooperating packages.
 
-It should not own:
+A package should usually correspond to a role, not merely a pile of related implementation details.
+
+Important package roles include:
 
 ```text
-routing
-data fetching
-state architecture
-form models
-validation models
-styling systems
-animation systems
-persistence
-component lifecycle
-hooks
-context
-global stores
-devtools transport
+core package
+representation package
+authoring vocabulary
+interpreter
+runtime shell
+testing tool
+boundary protocol
+companion theory
+escape hatch
 ```
 
-Those may exist around Facet. They may produce Facet UI values. They may consume Facet events. They may interpret Facet representations.
+A package may define a local theory, expose a vocabulary, provide an interpreter, bridge an external system, or supply tooling around Facet values.
 
-But they should not require Facet to become their owner.
+The question for a package is:
 
-The theory is deliberately smaller:
+> What role does this package play in the ecosystem?
 
-> Facet describes interactive UI denotationally and interprets that description through explicit layers.
+Not every useful thing belongs in the core.
+
+A healthy ecosystem may contain:
+
+```text
+facet-core          — denotational UI vocabulary
+facet-tree          — concrete inspectable representation
+facet-html          — HTML authoring vocabulary
+facet-dom           — browser DOM interpretation
+facet-string        — static string interpretation
+facet-test          — pure structural and event testing
+facet-runtime       — optional application loop shell
+facet-observation   — target facts as events
+facet-foreign       — imperative islands as explicit boundaries
+facet-focus         — focus observations and commands at the edge
+facet-animation     — animation as interpreter or driver concern
+facet-resources     — resource effects and subscriptions outside UI denotation
+```
+
+The exact package names may vary. The theory is about roles.
+
+The principle is:
+
+> Package boundaries should follow responsibility boundaries.
 
 ---
 
-## 15. Companion packages compose by denotation
+## 19. Exports are participation points
 
-A companion package should usually expose:
+An export is not just a public function. It is a stable way for outside code to participate in the Facet model.
 
-```text
-state types
-event types
-update functions
-effect descriptions
-views
-```
-
-A reusable view should be shaped like:
+An export may let users:
 
 ```text
-State → Ui<Event>
+construct a UI denotation
+transform a UI denotation
+translate an event vocabulary
+attach explicit identity
+provide an optimization hint
+inspect or represent a denotation
+interpret a denotation
+cross a boundary
+author a derived vocabulary
+coordinate with a runtime
 ```
 
-or, when generic over the UI algebra:
+Exporting something makes it part of the public ontology of the package.
+
+Before export:
 
 ```text
-UiAlgebra → State → Ui<Event>
+this is how the package happens to work
 ```
 
-A child package should emit child events. A parent package should translate them into parent events.
-
-This keeps composition local and explicit:
+After export:
 
 ```text
-child view emits ChildEvent
-parent maps ChildEvent to ParentEvent
-application update handles ParentEvent
+this is something other code may rely on
 ```
 
-No hidden global runtime is required.
+The question for an export is:
 
-No child needs to know its parent.
+> What public dependency are we inviting?
 
-No package needs to seize control of the app.
+For Facet, a good export should usually fit one of these descriptions:
+
+```text
+This lets users build UI denotations.
+This lets users compose UI denotations.
+This lets users translate emitted events.
+This lets users inspect UI denotations.
+This lets users interpret UI denotations.
+This lets users cross a boundary explicitly.
+This lets users author a common derived form.
+This lets other packages coordinate with Facet.
+This names a distinction users need to preserve.
+```
+
+The principle is:
+
+> An export is a stable public affordance for participating in the ecosystem.
 
 ---
 
-## 16. Derived conveniences are not axioms
+## 20. Derived conveniences are welcome
 
-Authoring helpers are welcome, but they should be understood as derived forms.
+Facet should be pleasant to use.
 
 Helpers such as:
 
@@ -468,104 +707,100 @@ ARIA helpers
 event-specific decoders
 ```
 
-may make the language pleasant to use. But they are not new theoretical primitives unless they introduce a new irreducible law.
+may be valuable.
 
-The design test is:
+They do not need to justify themselves as core primitives. Their role is authoring fluency.
 
-> Can this be explained as a derived term over the core algebra?
+The question is:
 
-If yes, it belongs in an authoring layer, not the core.
+> Does this make common expression clearer without expanding the core model?
 
-This distinction protects the theory from becoming a grab bag of conveniences.
+Derived conveniences should elaborate into the core denotation or into a clearly named boundary protocol.
 
----
-
-## 17. Boundaries are part of the theory
-
-Facet is small, but it should not be naive.
-
-It should not ignore imperative widgets, browser layout, focus, measurement, animation, resources, or subscriptions. It should classify them.
-
-The core theory should say:
-
-```text
-Foreign imperative systems are opaque interpreted regions.
-Target-derived facts return as events.
-Application state decides what those facts mean.
-Effects live at the edge.
-The core UI denotation remains small.
-```
-
-This allows companion theories to be powerful without corrupting the central theorem.
-
-A healthy ecosystem can have:
-
-```text
-Facet core          — denotational UI
-Facet HTML          — HTML vocabulary over the core
-Facet tree          — concrete inspectable representation
-Facet DOM           — browser interpretation
-Facet string        — static HTML interpretation
-Facet testing       — pure structural/event inspection
-Facet runtime       — optional app-loop shell
-Facet observation   — target facts as events
-Facet foreign       — imperative islands as explicit boundaries
-Facet focus         — focus observations and commands at the edge
-Facet animation     — animation as interpreter/driver concern
-Facet resources     — resource effects and subscriptions outside UI denotation
-```
-
-The core remains small because the handoffs are explicit.
+This protects the theory from becoming a grab bag while still allowing the ecosystem to be ergonomic.
 
 ---
 
-## 18. The package as a theory
+## 21. Escape hatches must be visible
 
-Facet should be organized like a small body of mathematics.
+Every practical UI system needs escape hatches.
 
-It should have:
+Facet should allow them, but they should be explicit.
+
+Examples might include:
 
 ```text
-definitions
-constructors
-laws
-interpretations
-corollaries
-boundaries
+raw markup
+custom attributes
+foreign handles
+unsafe target access
+imperative regions
+target-specific commands
 ```
 
-The API surface is not merely a set of utilities. It is a proof-shaped argument about what UI is.
+The question for an escape hatch is:
 
-The definitions establish the domain.  
-The constructors build terms in that domain.  
-The laws state when terms are equivalent.  
-The interpreters give those terms operational meaning.  
-The corollaries show how useful programs arise.  
-The boundaries prevent the theory from claiming too much.
+> What invariant is being relaxed, and how visibly?
 
-Every exported primitive should be able to answer:
+An escape hatch is acceptable when it keeps its cost legible. It should not silently smuggle a new ownership model into the core.
 
-> What lemma am I?
+The principle is:
 
-If it cannot, it may still be useful, but it is probably a derived helper or an adjacent tool rather than part of the core theory.
+> Escape hatches should be doors, not leaks.
 
 ---
 
-## 19. The central theorem
+## 22. Interoperation is the goal
 
-Facet's central theorem can be stated informally:
+Facet exists because UI systems should not require one entity to own meaning, implementation, runtime, rendering, effects, and tooling all at once.
 
-> The same interactive UI term admits multiple lawful interpretations without changing its abstract meaning.
+An integrated framework can be powerful. But Facet is exploring a different shape:
+
+```text
+small core
+explicit handoffs
+portable denotations
+replaceable interpreters
+independent tooling
+local companion theories
+runtime as shell
+effects at the edge
+```
+
+The goal is not minimalism for its own sake.
+
+The goal is interoperation.
+
+A renderer should be replaceable.
+A test interpreter should be independent.
+An HTML vocabulary should not be the core.
+A runtime should not absorb the application.
+A companion package should compose through denotation.
+A foreign widget should cross an explicit boundary.
+An observer should report target facts as events.
+An effect system should live outside UI values.
+
+The principle is:
+
+> Facet should increase interoperation more than ownership.
+
+---
+
+## 23. The central theorem
+
+Facet’s central theorem can be stated informally:
+
+> The same interactive UI denotation can be constructed, transformed, represented, inspected, interpreted, tested, and driven by independent tools without surrendering application meaning to a single owning runtime.
 
 More fully:
 
-> Given application meaning expressed as state, events, transitions, and effects, Facet provides a small algebra for projecting that meaning into pure UI denotations. These denotations compose structurally, emit typed events, support lawful event translation, carry explicit identity annotations, and admit optimization hints that do not change meaning. Concrete representations and renderers interpret the same denotation into DOM, HTML strings, test data, or other targets. Interaction is an optional shell that connects pure views, pure transitions, and impure effect interpreters. Foreign systems and target observations enter only through explicit boundaries. Facet does not own the application; it supplies the language by which an application can describe its interface without surrendering its meaning.
+> Given application meaning expressed as state, events, transitions, invariants, and effects, Facet provides a small denotational protocol for projecting that meaning into pure UI values. These values compose structurally, emit typed events, support explicit event translation, carry explicit identity annotations, and admit optimization hints that do not change meaning. Concrete representations and interpreters may realize the same denotation as DOM, static markup, normalized data, test structure, or another target. Interaction is an optional shell that connects pure views, pure transitions, and effect interpreters. Foreign regions and target observations enter only through explicit boundaries. Facet does not own the application; it supplies the shared surface by which independent tools can cooperate.
 
 ---
 
-## 20. The theory in one paragraph
+## 24. The theory in one paragraph
 
-Facet is a small denotational UI theory. Applications own meaning: state, domain events, transitions, invariants, and effects. Facet provides a minimal algebra for projecting that meaning into pure UI values. Those values compose structurally, emit typed events, support lawful event translation, carry explicit identity annotations, and admit optimization hints that do not change meaning. Concrete representations and renderers interpret the same denotation into DOM, HTML strings, test data, or other targets. Interaction is an optional shell that connects pure views, pure transitions, and impure effect interpreters. Foreign imperative systems are explicit opaque regions, and target-derived facts return as typed events. Facet does not own the application; it supplies the language by which an application can describe its interface without surrendering its meaning.
+Facet is a denotational UI protocol. Applications own meaning: state, domain events, transitions, invariants, and effects. Facet provides a small public vocabulary for projecting that meaning into pure UI values. Those values compose structurally, emit typed events, support event translation, carry explicit identity, and admit optimization hints that do not change meaning. Representations, renderers, testing tools, runtimes, vocabularies, effect systems, observers, and foreign-region adapters are separate ecosystem roles. They cooperate through explicit handoffs rather than hidden framework ownership. Facet’s purpose is to make interactive UI portable across implementations.
 
 ---
 
@@ -575,6 +810,7 @@ Facet is a small denotational UI theory. Applications own meaning: state, domain
 UI is data.
 Events are outputs.
 Rendering is interpretation.
+Runtime is a shell.
 Effects live at the edge.
 ```
 
@@ -582,10 +818,17 @@ Effects live at the edge.
 Meaning belongs to the application.
 Facet describes the interface.
 Interpreters realize it.
+Tools cooperate through public denotations.
 ```
 
 ```text
 Small core.
-Explicit boundaries.
-Lawful interpretations.
+Explicit handoffs.
+Replaceable parts.
+Portable meaning.
+```
+
+```text
+Facet should own the protocol,
+not the application.
 ```

@@ -15,8 +15,13 @@ body {
   margin: 0;
 }
 
-button {
+button,
+input {
   font: inherit;
+}
+
+button {
+  cursor: pointer;
 }
 
 .shell {
@@ -27,12 +32,16 @@ button {
 }
 
 .card {
-  width: min(36rem, 100%);
+  width: min(44rem, 100%);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 1.5rem;
   padding: 2rem;
   background: rgba(255, 255, 255, 0.06);
   box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.25);
+}
+
+.stack > * + * {
+  margin-top: 0.75rem;
 }
 
 h1 {
@@ -41,39 +50,96 @@ h1 {
   letter-spacing: -0.06em;
 }
 
-.lede {
-  margin: 1rem 0 2rem;
+.lede,
+.hint,
+.empty-state {
   color: #c4c4cc;
   line-height: 1.6;
 }
 
-.counter {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+.task-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  margin-top: 2rem;
 }
 
-.count {
-  min-width: 4rem;
-  text-align: center;
-  font-size: 2rem;
-  font-variant-numeric: tabular-nums;
+input[type="text"] {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
 }
 
-.button,
-.reset {
+button {
   border: 0;
   border-radius: 999px;
-  cursor: pointer;
+  padding: 0.75rem 1rem;
 }
 
-.button {
-  width: 3rem;
-  height: 3rem;
-  font-size: 1.5rem;
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.filters,
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.filter.selected {
+  outline: 2px solid currentColor;
+}
+
+.tasks {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.task {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.task.done .task-label span {
+  color: #a1a1aa;
+  text-decoration: line-through;
+}
+
+.task-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.remove,
+.reset {
+  background: rgba(255, 255, 255, 0.14);
+  color: inherit;
 }
 
 .reset {
-  margin-top: 1.5rem;
-  padding: 0.75rem 1rem;
+  margin-top: 1rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }

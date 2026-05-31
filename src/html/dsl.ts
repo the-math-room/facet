@@ -141,6 +141,24 @@ export function htmlDsl<Ui>(
     cls: className,
     on,
 
+    onClick<Event>(
+      decode: () => Event | null
+    ): HtmlAttribute<Event> {
+      return on("click", () => decode());
+    },
+
+    onKeyDown<Event>(
+      decode: (key: string, event: KeyboardEvent) => Event | null
+    ): HtmlAttribute<Event> {
+      return on("keydown", (event) => {
+        if (event instanceof KeyboardEvent) {
+          return decode(event.key, event);
+        }
+
+        return null;
+      });
+    },
+
     onSubmit<Event>(
       decode: () => Event | null
     ): HtmlAttribute<Event> {
@@ -193,9 +211,15 @@ export function htmlDsl<Ui>(
     checked: propertyHelper("checked"),
     defaultChecked: propertyHelper("defaultChecked"),
     disabled: propertyHelper("disabled"),
+    hidden: propertyHelper("hidden"),
     selected: propertyHelper("selected"),
     placeholder: propertyHelper("placeholder"),
+    required: propertyHelper("required"),
+    readOnly: propertyHelper("readOnly"),
+    multiple: propertyHelper("multiple"),
+    tabIndex: propertyHelper("tabIndex"),
 
+    forId: attributeHelper("for"),
     href: attributeHelper("href"),
     target: attributeHelper("target"),
     rel: attributeHelper("rel"),
@@ -203,6 +227,12 @@ export function htmlDsl<Ui>(
     alt: attributeHelper("alt"),
     role: attributeHelper("role"),
     aria: prefixedAttributes("aria"),
+    ariaLabel: ariaAlias("label"),
+    describedBy: ariaAlias("describedby"),
+    controls: ariaAlias("controls"),
+    expanded: ariaAlias("expanded"),
+    pressed: ariaAlias("pressed"),
+    current: ariaAlias("current"),
     data: prefixedAttributes("data"),
     styleAttr: attributeHelper("style"),
 
@@ -301,6 +331,12 @@ function attributeHelper(
   name: string
 ): <Event>(value: AttributeValue) => HtmlAttribute<Event> {
   return (value) => attr(name, String(value));
+}
+
+function ariaAlias(
+  name: string
+): <Event>(value: AttributeValue) => HtmlAttribute<Event> {
+  return (value) => attr(`aria-${name}`, String(value));
 }
 
 function prefixedAttributes(

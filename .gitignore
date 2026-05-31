@@ -23,3 +23,7 @@ facet-context.md
 /scripts/update-docs-*.sh
 /scripts/add-dsl-ergonomic-*.sh
 /scripts/add-dsl-conditional-*.sh
+/scripts/add-small-dsl-*.sh
+/scripts/add-aria-alias-*.sh
+/scripts/add-reference-*.sh
+/scripts/add-boundary-*.sh

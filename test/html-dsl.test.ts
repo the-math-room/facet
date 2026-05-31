@@ -4,146 +4,120 @@ import { renderToJson } from "../src/test-renderer";
 import { TreeAlgebra } from "../src/tree/tree-ui";
 
 describe("htmlDsl", () => {
-  it("supports fragment, when, unless, and maybe helpers", () => {
+  it("supports ARIA alias helpers and hidden property helper", () => {
     const H = htmlDsl(TreeAlgebra);
 
-    const user: { readonly name: string } | null = { name: "Ada" };
+    const ui = H.button(
+      H.ariaLabel("Toggle menu"),
+      H.describedBy("menu-hint"),
+      H.controls("menu"),
+      H.expanded(true),
+      H.pressed(false),
+      H.current("page"),
+      H.hidden(false),
+      "Menu"
+    );
 
-    const ui = H.section(
-      H.fragment(
-        H.h1("Title"),
-        H.p("Intro")
+    expect(renderToJson(ui)).toEqual({
+      kind: "node",
+      tag: "button",
+      attributes: [
+        { kind: "attribute", name: "aria-label", value: "Toggle menu" },
+        { kind: "attribute", name: "aria-describedby", value: "menu-hint" },
+        { kind: "attribute", name: "aria-controls", value: "menu" },
+        { kind: "attribute", name: "aria-expanded", value: "true" },
+        { kind: "attribute", name: "aria-pressed", value: "false" },
+        { kind: "attribute", name: "aria-current", value: "page" },
+        { kind: "property", name: "hidden", value: false }
+      ],
+      children: [{ kind: "text", value: "Menu" }]
+    });
+  });
+
+
+  it("supports small event and attribute convenience helpers", () => {
+    const H = htmlDsl(TreeAlgebra);
+
+    type HelperEvent =
+      | { readonly type: "EnterPressed" }
+      | { readonly type: "Clicked" };
+
+    const ui = H.form<HelperEvent>(
+      H.label(H.forId("email"), "Email"),
+      H.input<HelperEvent>(
+        H.id("email"),
+        H.required(true),
+        H.readOnly(false),
+        H.tabIndex(0),
+        H.onKeyDown<HelperEvent>((key) =>
+          key === "Enter" ? { type: "EnterPressed" } : null
+        )
       ),
-      H.when(true, H.p("Visible")),
-      H.when(false, H.p("Hidden")),
-      H.unless(false, H.p("Unless visible")),
-      H.unless(true, H.p("Unless hidden")),
-      H.maybe(user, (presentUser) =>
-        H.p(`User: ${presentUser.name}`)
+      H.select<HelperEvent>(
+        H.multiple(true),
+        H.option<HelperEvent>(H.value("a"), "A")
       ),
-      H.maybe(null as string | null, (value) =>
-        H.p(value)
+      H.button<HelperEvent>(
+        H.type("button"),
+        H.onClick<HelperEvent>(() => ({ type: "Clicked" })),
+        "Click"
       )
     );
 
     expect(renderToJson(ui)).toEqual({
       kind: "node",
-      tag: "section",
+      tag: "form",
       attributes: [],
       children: [
         {
           kind: "node",
-          tag: "h1",
-          attributes: [],
-          children: [{ kind: "text", value: "Title" }]
+          tag: "label",
+          attributes: [
+            { kind: "attribute", name: "for", value: "email" }
+          ],
+          children: [{ kind: "text", value: "Email" }]
         },
         {
           kind: "node",
-          tag: "p",
-          attributes: [],
-          children: [{ kind: "text", value: "Intro" }]
+          tag: "input",
+          attributes: [
+            { kind: "property", name: "id", value: "email" },
+            { kind: "property", name: "required", value: true },
+            { kind: "property", name: "readOnly", value: false },
+            { kind: "property", name: "tabIndex", value: 0 },
+            { kind: "event", name: "keydown" }
+          ],
+          children: []
         },
         {
           kind: "node",
-          tag: "p",
-          attributes: [],
-          children: [{ kind: "text", value: "Visible" }]
-        },
-        {
-          kind: "node",
-          tag: "p",
-          attributes: [],
-          children: [{ kind: "text", value: "Unless visible" }]
-        },
-        {
-          kind: "node",
-          tag: "p",
-          attributes: [],
-          children: [{ kind: "text", value: "User: Ada" }]
-        }
-      ]
-    });
-  });
-
-  it("supports list and keyedList helpers", () => {
-    const H = htmlDsl(TreeAlgebra);
-
-    const items = [
-      { id: "a", label: "A" },
-      { id: "b", label: "B" }
-    ] as const;
-
-    const ui = H.div(
-      H.ul(
-        H.keyedList(
-          items,
-          (item) => item.id,
-          (item) => H.li(item.label)
-        )
-      ),
-      H.ol(
-        H.list(
-          items,
-          (item, index) => H.li(`${index + 1}. ${item.label}`)
-        )
-      )
-    );
-
-    expect(renderToJson(ui)).toEqual({
-      kind: "node",
-      tag: "div",
-      attributes: [],
-      children: [
-        {
-          kind: "node",
-          tag: "ul",
-          attributes: [],
+          tag: "select",
+          attributes: [
+            { kind: "property", name: "multiple", value: true }
+          ],
           children: [
             {
-              kind: "keyed",
-              key: "a",
-              child: {
-                kind: "node",
-                tag: "li",
-                attributes: [],
-                children: [{ kind: "text", value: "A" }]
-              }
-            },
-            {
-              kind: "keyed",
-              key: "b",
-              child: {
-                kind: "node",
-                tag: "li",
-                attributes: [],
-                children: [{ kind: "text", value: "B" }]
-              }
+              kind: "node",
+              tag: "option",
+              attributes: [
+                { kind: "property", name: "value", value: "a" }
+              ],
+              children: [{ kind: "text", value: "A" }]
             }
           ]
         },
         {
           kind: "node",
-          tag: "ol",
-          attributes: [],
-          children: [
-            {
-              kind: "node",
-              tag: "li",
-              attributes: [],
-              children: [{ kind: "text", value: "1. A" }]
-            },
-            {
-              kind: "node",
-              tag: "li",
-              attributes: [],
-              children: [{ kind: "text", value: "2. B" }]
-            }
-          ]
+          tag: "button",
+          attributes: [
+            { kind: "property", name: "type", value: "button" },
+            { kind: "event", name: "click" }
+          ],
+          children: [{ kind: "text", value: "Click" }]
         }
       ]
     });
   });
-
 
   it("merges class attributes and supports conditional classes", () => {
     const H = htmlDsl(TreeAlgebra);

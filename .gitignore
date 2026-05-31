@@ -34,3 +34,4 @@ facet-context.md
 /scripts/update-architecture-docs.sh
 /scripts/add-workbench-*.sh
 /scripts/wrap-up-*.sh
+/scripts/prepare-github-*.sh

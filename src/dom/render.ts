@@ -71,15 +71,15 @@ export type DomMounted = {
  * - Event maps are stored as linked pipeline nodes, not copied arrays.
  * - Same-tag elements patch in place.
  * - Keyed children are moved/reused across sibling reorders.
- * - Keyed child ordering uses an LIS pass to avoid moving nodes already in order.
  * - Duplicate sibling keys throw eagerly.
+ * - Memo nodes can skip patching unchanged subtrees by token.
  * - Events are delegated through one capture-phase root listener per event type.
- * - Delegated handlers are updated per element, so future subtree bailouts can
- *   preserve existing handlers instead of requiring a global event-table rebuild.
+ * - Delegated handlers are updated per element, so skipped memo subtrees can
+ *   preserve existing handlers without requiring a global event-table rebuild.
  *
  * Still intentionally not implemented:
  *
- * - subtree bailout/memoization
+ * - move-minimizing keyed reconciliation
  * - advanced form control semantics beyond defensive property clearing
  */
 export const DomRenderer: Renderer<TreeUi, Element, DomMounted> = {
@@ -687,52 +687,6 @@ function reorderChildrenByLis(
   }
 }
 
-function longestIncreasingSubsequenceIndexes(
-  values: readonly (number | null)[]
-): readonly number[] {
-  const predecessors = new Array<number>(values.length).fill(-1);
-  const tails: number[] = [];
-
-  for (let index = 0; index < values.length; index += 1) {
-    const value = values[index];
-
-    if (value === null || value === undefined) {
-      continue;
-    }
-
-    let low = 0;
-    let high = tails.length;
-
-    while (low < high) {
-      const mid = Math.floor((low + high) / 2);
-      const tailValue = values[tails[mid]!]!;
-
-      if (tailValue < value) {
-        low = mid + 1;
-      } else {
-        high = mid;
-      }
-    }
-
-    if (low > 0) {
-      predecessors[index] = tails[low - 1]!;
-    }
-
-    tails[low] = index;
-  }
-
-  const result: number[] = [];
-  let current = tails[tails.length - 1];
-
-  while (current !== undefined && current !== -1) {
-    result.push(current);
-    current = predecessors[current];
-  }
-
-  result.reverse();
-
-  return result;
-}
 
 function applyAttributes(
   element: Element,

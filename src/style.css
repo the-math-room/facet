@@ -177,3 +177,18 @@ code {
   margin-top: 0.75rem;
   margin-bottom: 0.75rem;
 }
+
+.demo-frame {
+  margin-top: 1.5rem;
+}
+
+.demo-frame > .shell {
+  min-height: auto;
+  display: block;
+  padding: 0;
+}
+
+.demo-frame > .shell > .card {
+  width: 100%;
+  box-shadow: none;
+}

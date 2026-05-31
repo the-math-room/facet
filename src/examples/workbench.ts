@@ -180,7 +180,7 @@ export function viewWorkbench(
           "The preview below is mounted as real interactive browser nodes."
         ),
         H.mapEvents<PreviewEvent, WorkbenchEvent>(
-          () => ({ type: "PreviewClicked" })
+          (event) => mapPreviewEvent(event)
         )(preview),
         H.p(
           H.cls("hint"),
@@ -218,6 +218,15 @@ export function viewWorkbench(
       )
     )
   );
+}
+
+function mapPreviewEvent(
+  event: PreviewEvent
+): WorkbenchEvent {
+  switch (event.type) {
+    case "Clicked":
+      return { type: "PreviewClicked" };
+  }
 }
 
 function viewPreview(

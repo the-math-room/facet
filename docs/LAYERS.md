@@ -115,16 +115,16 @@ The shell owns:
 - calling renderer patch
 - running effects, if the app uses effects
 
-src/runtime provides an optional app loop for this boundary.
+src/runtime provides an optional app-loop driver for this boundary. It is not Facet's core runtime.
 
-The runtime model is:
+The optional app-loop model is:
 
 - init returns State plus Effect descriptions
 - update returns State plus Effect descriptions
 - view projects State into UI
 - runEffect is the impure boundary
 
-The runtime does not belong to core. It is a shell helper over any Renderer.
+The app-loop driver does not belong to core. It is a shell helper over any Renderer.
 
 ## Pure and impure boundaries
 
@@ -167,3 +167,32 @@ Facet may grow HTML vocabulary, interpreters, pure testing utilities, and option
 Facet should not become a kitchen-sink application framework.
 
 Routing, resources, forms, validation, animation, persistence, styling systems, and devtools can target Facet without belonging to Facet core.
+
+## Composing with companion packages
+
+Facet's long-term ecosystem shape should be Unixy: small packages that produce UI values, emit events, or interpret representations.
+
+Companion packages may define:
+
+- state
+- events
+- update functions
+- effect descriptions
+- pure views
+- helpers over Facet's DSL
+
+Companion packages should not require hidden global runtime state, mutate Facet UI values, or depend on the DOM unless they are interpreters or drivers.
+
+A generic reusable view should usually target the abstract algebra shape rather than TreeUi directly.
+
+Apps and demos may use TreeAlgebra directly. Reusable libraries should prefer UiAlgebra when possible.
+
+Child packages should emit local events. Parent apps should translate those events upward with mapEvent or htmlDsl(...).mapEvents.
+
+## UI IR, not mini app framework
+
+Facet's core identity is UI IR plus interpreters.
+
+The optional app-loop driver exists to demonstrate and support a pure update plus impure effect boundary. It should not grow into lifecycle, scheduling, routing, resource, context, or component systems.
+
+If those tools are needed, they should orbit Facet as separate packages.

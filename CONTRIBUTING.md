@@ -29,7 +29,7 @@ It should not own:
 
 Those can live in separate tools that target Facet's ADT.
 
-Facet may provide small optional shell utilities, such as src/runtime, as long as they keep impurity at the edge and do not change the UI denotation.
+Facet may provide small optional shell utilities, such as the src/runtime app-loop driver, as long as they keep impurity at the edge and do not change the UI denotation.
 
 ## Design boundaries
 
@@ -72,7 +72,7 @@ Use this order when deciding where a feature belongs:
 7. src/string interprets that representation into static HTML text.
 8. src/test-renderer provides normalized structural JSON for tests.
 9. src/testing provides pure ADT-level inspection, queries, and event decoder tests.
-10. src/runtime provides an optional app/effect loop that keeps effects at the edge.
+10. src/runtime provides an optional app-loop driver that keeps effects at the edge.
 11. src/examples demonstrates usage; examples are allowed to compose layers.
 
 ## Pure and impure code
@@ -134,3 +134,15 @@ The check script runs:
 - TypeScript typechecking
 - Vitest tests
 - source-layer boundary checks
+
+## Companion package rules
+
+Facet should support a Unixy ecosystem of small packages.
+
+Companion packages may define state, events, update functions, effects, views, and DSL helpers.
+
+They should not require hidden global runtime state, mutate Facet UI values, or depend on the DOM unless they are interpreters or drivers.
+
+Reusable libraries should prefer generic UiAlgebra-based views. Apps and demos may use TreeAlgebra directly.
+
+Child packages should emit local events. Parent apps should translate those events upward with mapEvent or htmlDsl(...).mapEvents.

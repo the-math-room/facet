@@ -21,7 +21,7 @@ Meaning belongs in application/domain code. Facet owns the UI denotation, interp
 - src/string interprets Tree into static HTML text.
 - src/test-renderer interprets Tree into normalized JSON snapshots.
 - src/testing provides pure ADT inspection, queries, and event decoder tests.
-- src/runtime provides an optional Elm-style app loop with pure update and impure runEffect boundary.
+- src/runtime provides an optional Elm-style app-loop driver with pure update and impure runEffect boundary.
 - src/examples contains the minimal counter, reference app, and workbench dogfood app.
 
 ## Current dogfood app
@@ -98,3 +98,61 @@ Good next work, in rough priority order:
 This is a good v1 foundation stop point.
 
 Do not add more abstractions until real usage reveals a need.
+
+## Ecosystem direction
+
+The long-term direction is not a larger framework. It is a Unixy replacement stack made of small packages.
+
+Facet should stay excellent at:
+
+- interactive UI as inspectable data
+- event mapping
+- explicit interpreters
+- laws and tests around equivalence
+- pure testing of projections and event decoders
+
+Other packages can orbit Facet:
+
+- routers that produce UI values and route events
+- form packages that own form state and emit form events
+- resource packages that produce effects and events
+- devtools that observe the app loop
+- styling tools that produce attributes or classes
+
+Those packages should not require Facet core to own their state, lifecycle, or effects.
+
+## Companion package rules
+
+Companion packages should obey these rules:
+
+- They may define state, events, update functions, effects, and views.
+- They may emit Facet UI values.
+- They may provide helpers over Facet's DSL.
+- They must not mutate Facet UI values.
+- They must not require hidden global runtime state.
+- They must not depend on the DOM unless they are interpreters or drivers.
+- They should expose local events and let parent apps map those events upward.
+
+Reusable libraries should prefer generic UiAlgebra-based views. Apps and demos may use TreeAlgebra directly.
+
+## Future ergonomics research
+
+Possible future ergonomics work, not for the current stop point:
+
+- props-object DSL
+- pre-bound TreeAlgebra DSL for app code
+- optional JSX runtime
+- small transition helpers
+
+Do not add these until real dogfooding shows they are worth the extra API surface.
+
+## Technical debt to revisit
+
+Renderer and interpreter edge cases worth testing before expanding feature count:
+
+- memo plus changed ancestor mapEvent
+- root-level concat and fragment patching
+- disabled-control behavior in pure testing utilities
+- textarea and input selection preservation
+- richer form-control semantics
+- isolated keyed reconciliation algorithm tests before move-minimizing optimization

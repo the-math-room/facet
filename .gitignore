@@ -35,3 +35,4 @@ facet-context.md
 /scripts/add-workbench-*.sh
 /scripts/wrap-up-*.sh
 /scripts/prepare-github-*.sh
+/scripts/finalize-composition-*.sh

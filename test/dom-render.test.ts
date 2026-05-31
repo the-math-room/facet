@@ -730,6 +730,84 @@ describe("DomRenderer", () => {
     expect(root.textContent).toBe("After");
   });
 
+  it("nested memo with same token skips child subtree patch", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    const view = (token: string, text: string) =>
+      H.div(
+        [],
+        [
+          H.memo(
+            token,
+            H.span([], [H.text(text)])
+          )
+        ]
+      );
+
+    const mounted = DomRenderer.mount(
+      root,
+      view("same", "Before"),
+      () => {}
+    );
+
+    const divBefore = root.querySelector("div");
+    const spanBefore = root.querySelector("span");
+
+    expect(divBefore).not.toBeNull();
+    expect(spanBefore).not.toBeNull();
+    expect(root.textContent).toBe("Before");
+
+    DomRenderer.patch(
+      mounted,
+      view("same", "After"),
+      () => {}
+    );
+
+    const divAfter = root.querySelector("div");
+    const spanAfter = root.querySelector("span");
+
+    expect(divAfter).toBe(divBefore);
+    expect(spanAfter).toBe(spanBefore);
+    expect(root.textContent).toBe("Before");
+  });
+
+  it("nested memo with changed token patches child subtree", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    const view = (token: string, text: string) =>
+      H.div(
+        [],
+        [
+          H.memo(
+            token,
+            H.span([], [H.text(text)])
+          )
+        ]
+      );
+
+    const mounted = DomRenderer.mount(
+      root,
+      view("before", "Before"),
+      () => {}
+    );
+
+    const spanBefore = root.querySelector("span");
+    expect(spanBefore).not.toBeNull();
+
+    DomRenderer.patch(
+      mounted,
+      view("after", "After"),
+      () => {}
+    );
+
+    const spanAfter = root.querySelector("span");
+
+    expect(spanAfter).toBe(spanBefore);
+    expect(root.textContent).toBe("After");
+  });
+
   it("memo with same token preserves delegated events in skipped subtree", () => {
     const H = html(TreeAlgebra);
     const root = document.createElement("div");

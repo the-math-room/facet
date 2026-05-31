@@ -73,7 +73,7 @@ The DOM renderer performs conservative same-position reconciliation directly ove
 
 - lazy mapped-event nodes are evaluated during render/patch
 - memo nodes are denotationally equivalent to their child
-- unchanged memo tokens may preserve interpreted DOM subtrees
+- unchanged memo tokens may preserve interpreted DOM subtrees, including nested subtrees
 - text nodes update in place
 - same-tag elements update in place
 - different tags are replaced
@@ -81,11 +81,11 @@ The DOM renderer performs conservative same-position reconciliation directly ove
 - keyed children are moved/reused across sibling reorders
 - duplicate sibling keys throw eagerly
 - memo nodes are denotationally equivalent to their child
-- unchanged memo tokens may preserve interpreted DOM subtrees
+- unchanged memo tokens may preserve interpreted DOM subtrees, including nested subtrees
 - removed DOM properties are cleared with defensive zero values
 - events are delegated through one root listener per event type
 
 The next renderer milestones are:
 
 - explicit tests for more form controls and selection preservation
-- move-minimizing keyed reconciliation, if benchmark data justifies it
+- additional keyed-reconciliation benchmarks for realistic partial reorders

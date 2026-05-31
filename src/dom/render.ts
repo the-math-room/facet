@@ -289,7 +289,7 @@ function patchNode(
       node,
       oldTree.child as Tree<unknown>,
       oldPipeline,
-      newTree,
+      unwrapMemo(newTree),
       newPipeline,
       delegation
     );
@@ -298,7 +298,7 @@ function patchNode(
   if (newTree.kind === "memo") {
     return patchNode(
       node,
-      oldTree,
+      unwrapMemo(oldTree),
       oldPipeline,
       newTree.child as Tree<unknown>,
       newPipeline,
@@ -397,6 +397,14 @@ function unwrapKeyed(tree: Tree<unknown>): Tree<unknown> {
   return tree;
 }
 
+function unwrapMemo(tree: Tree<unknown>): Tree<unknown> {
+  if (tree.kind === "memo") {
+    return tree.child as Tree<unknown>;
+  }
+
+  return tree;
+}
+
 function keyOfFrame(frame: ChildFrame): Key | null {
   return keyOfTree(frame.tree);
 }
@@ -460,6 +468,7 @@ function pushFlattenedChildren(
   }
 }
 
+
 function pushFlattenedChild(
   result: ChildFrame[],
   child: Tree<unknown>,
@@ -475,11 +484,12 @@ function pushFlattenedChild(
     return;
   }
 
-  if (child.kind === "memo") {
-    pushFlattenedChild(result, child.child as Tree<unknown>, pipeline);
-    return;
-  }
-
+  /*
+   * Do not unwrap memo here.
+   *
+   * patchNode must receive memo frames directly so unchanged nested memo tokens
+   * can bail out before walking the child subtree.
+   */
   result.push({
     tree: child,
     pipeline
@@ -666,6 +676,7 @@ function patchKeyedChildren(
   reorderChildrenByLis(parent, desired);
 }
 
+
 function reorderChildrenByLis(
   parent: Element,
   desired: readonly DesiredChild[]
@@ -673,9 +684,9 @@ function reorderChildrenByLis(
   /*
    * Correctness-first ordering pass.
    *
-   * The previous LIS skip logic preserved too many nodes in place and failed
-   * cases like [A, B, C] -> [C, A, B]. Keep the function boundary so a future
-   * optimized move-minimizing pass can be reintroduced behind the same call.
+   * This intentionally avoids the broken LIS skip path until the move-minimizing
+   * algorithm has stronger tests. It preserves identity while ensuring inserts,
+   * removals, and reorders produce the exact desired DOM order.
    */
   for (let index = 0; index < desired.length; index += 1) {
     const child = desired[index]!;
@@ -685,49 +696,6 @@ function reorderChildrenByLis(
       parent.insertBefore(child.node, current);
     }
   }
-}
-
-
-function applyAttributes(
-  element: Element,
-  oldAttributes: readonly HtmlAttribute<unknown>[],
-  newAttributes: readonly HtmlAttribute<unknown>[],
-  context: RenderContext
-): void {
-  const nextHandlers = new Map<string, DelegatedHandler[]>();
-
-  removeOldAttributes(element, oldAttributes, newAttributes, context.delegation);
-
-  for (const attribute of newAttributes) {
-    switch (attribute.kind) {
-      case "attribute":
-        element.setAttribute(attribute.name, attribute.value);
-        break;
-
-      case "class":
-        element.className = attribute.value;
-        break;
-
-      case "property":
-        Reflect.set(element, attribute.name, attribute.value);
-        break;
-
-      case "event": {
-        const handlers = nextHandlers.get(attribute.name) ?? [];
-
-        handlers.push({
-          decode: attribute.decode,
-          pipeline: context.pipeline
-        });
-
-        nextHandlers.set(attribute.name, handlers);
-        ensureRootListener(attribute.name, context.delegation);
-        break;
-      }
-    }
-  }
-
-  setElementHandlers(element, nextHandlers, context.delegation);
 }
 
 function setElementHandlers(
@@ -923,3 +891,98 @@ const numberProperties = new Set<string>([
   "rowSpan",
   "tabIndex"
 ]);
+
+function longestIncreasingSubsequenceIndexes(
+  values: readonly (number | null)[]
+): readonly number[] {
+  const predecessors = new Array<number>(values.length).fill(-1);
+  const tails: number[] = [];
+
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index];
+
+    if (value === null || value === undefined) {
+      continue;
+    }
+
+    let low = 0;
+    let high = tails.length;
+
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      const tailIndex = tails[mid];
+
+      if (tailIndex === undefined) {
+        break;
+      }
+
+      const tailValue = values[tailIndex];
+
+      if (tailValue !== null && tailValue !== undefined && tailValue < value) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+
+    if (low > 0) {
+      predecessors[index] = tails[low - 1]!;
+    }
+
+    tails[low] = index;
+  }
+
+  const result: number[] = [];
+  let current = tails[tails.length - 1];
+
+  while (current !== undefined && current !== -1) {
+    result.push(current);
+    current = predecessors[current];
+  }
+
+  result.reverse();
+
+  return result;
+}
+
+function applyAttributes(
+  element: Element,
+  oldAttributes: readonly HtmlAttribute<unknown>[],
+  newAttributes: readonly HtmlAttribute<unknown>[],
+  context: RenderContext
+): void {
+  const nextHandlers = new Map<string, DelegatedHandler[]>();
+
+  removeOldAttributes(element, oldAttributes, newAttributes, context.delegation);
+
+  for (const attribute of newAttributes) {
+    switch (attribute.kind) {
+      case "attribute":
+        element.setAttribute(attribute.name, attribute.value);
+        break;
+
+      case "class":
+        element.className = attribute.value;
+        break;
+
+      case "property":
+        Reflect.set(element, attribute.name, attribute.value);
+        break;
+
+      case "event": {
+        const handlers = nextHandlers.get(attribute.name) ?? [];
+
+        handlers.push({
+          decode: attribute.decode,
+          pipeline: context.pipeline
+        });
+
+        nextHandlers.set(attribute.name, handlers);
+        ensureRootListener(attribute.name, context.delegation);
+        break;
+      }
+    }
+  }
+
+  setElementHandlers(element, nextHandlers, context.delegation);
+}

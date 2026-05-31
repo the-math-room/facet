@@ -11,3 +11,11 @@ export {
   on,
   prop
 } from "./html";
+
+export type {
+  HtmlDslArg
+} from "./dsl";
+
+export {
+  htmlDsl
+} from "./dsl";

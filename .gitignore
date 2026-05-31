@@ -17,3 +17,5 @@ facet-context.md
 /scripts/add-memo-*.sh
 /scripts/fix-*.sh
 /scripts/cleanup-*.sh
+/scripts/add-html-dsl.sh
+/scripts/use-dsl-*.sh

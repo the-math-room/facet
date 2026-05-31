@@ -56,6 +56,8 @@ Use this order when deciding where a feature belongs:
 2. Representation code projects meaning/state into a UI denotation.
 3. `src/core` defines abstract operations and laws.
 4. `src/html` defines HTML-specific helpers.
+   - `src/html/html.ts` keeps the explicit array-based helper API.
+   - `src/html/dsl.ts` provides a thin mixed-argument authoring DSL over the same algebra.
 5. `src/tree` defines one concrete HTML tree representation.
 6. `src/dom` interprets that representation into the browser DOM.
 7. `src/test-renderer` provides a non-DOM interpreter for normalized structural tests.

@@ -4,6 +4,7 @@ import {
   TreeAlgebra,
   className,
   html,
+  htmlDsl,
   on,
   prop,
   renderToJson
@@ -36,6 +37,17 @@ describe("public API", () => {
     const memoUi = H.memo("stable", ui);
 
     expect(renderToJson(memoUi)).toEqual(renderToJson(ui));
+
+    const D = htmlDsl(TreeAlgebra);
+
+    expect(renderToJson(D.button(D.prop("type", "button"), "DSL"))).toEqual({
+      kind: "node",
+      tag: "button",
+      attributes: [
+        { kind: "property", name: "type", value: "button" }
+      ],
+      children: [{ kind: "text", value: "DSL" }]
+    });
 
     expect(DomRenderer).toHaveProperty("mount");
     expect(DomRenderer).toHaveProperty("patch");

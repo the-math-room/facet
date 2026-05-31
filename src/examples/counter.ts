@@ -2,11 +2,8 @@ import type { UiAlgebra, UiOf } from "../core/ui";
 import {
   type HtmlAttributeAny,
   type HtmlTag,
-  className,
-  html,
-  on,
-  prop
-} from "../html/html";
+  htmlDsl
+} from "../html";
 
 export type CounterState = {
   readonly count: number;
@@ -37,63 +34,50 @@ export function viewCounter<Ui>(
   A: UiAlgebra<Ui, HtmlTag, HtmlAttributeAny>,
   state: CounterState
 ): UiOf<Ui, CounterEvent> {
-  const H = html(A);
+  const H = htmlDsl(A);
 
   return H.main(
-    [className("shell")],
-    [
-      H.section(
-        [className("card")],
-        [
-          H.h1([], [H.text("Facet")]),
+    H.className("shell"),
 
-          H.p(
-            [className("lede")],
-            [
-              H.text(
-                "A tiny denotational UI toolkit: meaning outside, representation pure, interpretation explicit."
-              )
-            ]
-          ),
+    H.section(
+      H.className("card"),
 
-          H.div(
-            [className("counter")],
-            [
-              H.button(
-                [
-                  className("button"),
-                  on("click", () => ({ type: "DecrementPressed" })),
-                  prop("type", "button")
-                ],
-                [H.text("-")]
-              ),
+      H.h1("Facet"),
 
-              H.span(
-                [className("count")],
-                [H.text(String(state.count))]
-              ),
+      H.p(
+        H.className("lede"),
+        "A tiny denotational UI toolkit: meaning outside, representation pure, interpretation explicit."
+      ),
 
-              H.button(
-                [
-                  className("button"),
-                  on("click", () => ({ type: "IncrementPressed" })),
-                  prop("type", "button")
-                ],
-                [H.text("+")]
-              )
-            ]
-          ),
+      H.div(
+        H.className("counter"),
 
-          H.button(
-            [
-              className("reset"),
-              on("click", () => ({ type: "ResetPressed" })),
-              prop("type", "button")
-            ],
-            [H.text("Reset")]
-          )
-        ]
+        H.button(
+          H.className("button"),
+          H.on("click", () => ({ type: "DecrementPressed" })),
+          H.prop("type", "button"),
+          "-"
+        ),
+
+        H.span(
+          H.className("count"),
+          String(state.count)
+        ),
+
+        H.button(
+          H.className("button"),
+          H.on("click", () => ({ type: "IncrementPressed" })),
+          H.prop("type", "button"),
+          "+"
+        )
+      ),
+
+      H.button(
+        H.className("reset"),
+        H.on("click", () => ({ type: "ResetPressed" })),
+        H.prop("type", "button"),
+        "Reset"
       )
-    ]
+    )
   );
 }

@@ -23,6 +23,7 @@ export {
 export type {
   HtmlAttribute,
   HtmlAttributeAny,
+  HtmlDslArg,
   HtmlTag
 } from "./html";
 
@@ -30,6 +31,7 @@ export {
   attr,
   className,
   html,
+  htmlDsl,
   on,
   prop
 } from "./html";

@@ -190,6 +190,9 @@ function renderTree(
         pipeline: appendMap(context.pipeline, tree.map)
       });
 
+    case "memo":
+      return renderTree(tree.child as Tree<unknown>, context);
+
     case "keyed":
       return renderTree(tree.child as Tree<unknown>, context);
 
@@ -273,6 +276,32 @@ function patchNode(
       oldPipeline,
       newTree.child,
       appendMap(newPipeline, newTree.map),
+      delegation
+    );
+  }
+
+  if (oldTree.kind === "memo") {
+    if (newTree.kind === "memo" && Object.is(oldTree.token, newTree.token)) {
+      return node;
+    }
+
+    return patchNode(
+      node,
+      oldTree.child as Tree<unknown>,
+      oldPipeline,
+      newTree,
+      newPipeline,
+      delegation
+    );
+  }
+
+  if (newTree.kind === "memo") {
+    return patchNode(
+      node,
+      oldTree,
+      oldPipeline,
+      newTree.child as Tree<unknown>,
+      newPipeline,
       delegation
     );
   }
@@ -361,6 +390,10 @@ function unwrapKeyed(tree: Tree<unknown>): Tree<unknown> {
     return unwrapKeyed(tree.child as Tree<unknown>);
   }
 
+  if (tree.kind === "memo") {
+    return unwrapKeyed(tree.child as Tree<unknown>);
+  }
+
   return tree;
 }
 
@@ -370,6 +403,10 @@ function keyOfFrame(frame: ChildFrame): Key | null {
 
 function keyOfTree(tree: Tree<unknown>): Key | null {
   if (tree.kind === "mapped") {
+    return keyOfTree(tree.child);
+  }
+
+  if (tree.kind === "memo") {
     return keyOfTree(tree.child);
   }
 
@@ -435,6 +472,11 @@ function pushFlattenedChild(
 
   if (child.kind === "mapped") {
     pushFlattenedChild(result, child.child, appendMap(pipeline, child.map));
+    return;
+  }
+
+  if (child.kind === "memo") {
+    pushFlattenedChild(result, child.child as Tree<unknown>, pipeline);
     return;
   }
 

@@ -105,6 +105,22 @@ describe("renderToJson", () => {
     });
   });
 
+  it("erases memo nodes from structural JSON", () => {
+    const H = html(TreeAlgebra);
+
+    const ui = H.memo(
+      "same",
+      H.div([], [H.text("Memo child")])
+    );
+
+    expect(renderToJson(ui)).toEqual({
+      kind: "node",
+      tag: "div",
+      attributes: [],
+      children: [{ kind: "text", value: "Memo child" }]
+    });
+  });
+
   it("erases mapped nodes from structural JSON while preserving event names", () => {
     const H = html(TreeAlgebra);
 

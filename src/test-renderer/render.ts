@@ -70,6 +70,9 @@ function normalizeTree(
     case "mapped":
       return normalizeTree(tree.child, appendMap(pipeline, tree.map));
 
+    case "memo":
+      return normalizeTree(tree.child as Tree<unknown>, pipeline);
+
     case "keyed":
       return {
         kind: "keyed",

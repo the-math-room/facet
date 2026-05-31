@@ -20,6 +20,11 @@ export type Tree<Event> =
       readonly child: Tree<Event>;
     }
   | {
+      readonly kind: "memo";
+      readonly token: unknown;
+      readonly child: Tree<Event>;
+    }
+  | {
       readonly kind: "mapped";
       readonly child: Tree<unknown>;
       readonly map: (event: unknown) => Event;
@@ -79,6 +84,17 @@ export const TreeAlgebra: UiAlgebra<TreeUi, HtmlTag, HtmlAttributeAny> = {
     return cast({
       kind: "keyed",
       key,
+      child: uncast(child)
+    });
+  },
+
+  memo<Event>(
+    token: unknown,
+    child: UiOf<TreeUi, Event>
+  ): UiOf<TreeUi, Event> {
+    return cast({
+      kind: "memo",
+      token,
       child: uncast(child)
     });
   },

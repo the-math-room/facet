@@ -27,6 +27,18 @@ export interface UiAlgebra<Ui, Tag, Attribute> {
     child: UiOf<Ui, Event>
   ): UiOf<Ui, Event>;
 
+  /**
+   * Interpretation hint.
+   *
+   * memo(token, child) is denotationally equivalent to child.
+   * Renderers may preserve an existing interpreted subtree when the token is
+   * unchanged by Object.is.
+   */
+  memo<Event>(
+    token: unknown,
+    child: UiOf<Ui, Event>
+  ): UiOf<Ui, Event>;
+
   mapEvent<A, B>(
     ui: UiOf<Ui, A>,
     map: (event: A) => B

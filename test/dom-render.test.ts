@@ -667,6 +667,104 @@ describe("DomRenderer", () => {
     expect(after[3]).toBe(before[2]);
   });
 
+  it("memo with same token preserves existing DOM subtree", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    const view = (token: string, text: string) =>
+      H.memo(
+        token,
+        H.div([], [H.text(text)])
+      );
+
+    const mounted = DomRenderer.mount(
+      root,
+      view("same", "Before"),
+      () => {}
+    );
+
+    const divBefore = root.querySelector("div");
+    expect(divBefore).not.toBeNull();
+    expect(root.textContent).toBe("Before");
+
+    DomRenderer.patch(
+      mounted,
+      view("same", "After"),
+      () => {}
+    );
+
+    const divAfter = root.querySelector("div");
+
+    expect(divAfter).toBe(divBefore);
+    expect(root.textContent).toBe("Before");
+  });
+
+  it("memo with changed token patches existing DOM subtree", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    const view = (token: string, text: string) =>
+      H.memo(
+        token,
+        H.div([], [H.text(text)])
+      );
+
+    const mounted = DomRenderer.mount(
+      root,
+      view("before", "Before"),
+      () => {}
+    );
+
+    const divBefore = root.querySelector("div");
+    expect(divBefore).not.toBeNull();
+
+    DomRenderer.patch(
+      mounted,
+      view("after", "After"),
+      () => {}
+    );
+
+    const divAfter = root.querySelector("div");
+
+    expect(divAfter).toBe(divBefore);
+    expect(root.textContent).toBe("After");
+  });
+
+  it("memo with same token preserves delegated events in skipped subtree", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+    const events: string[] = [];
+
+    const view = (token: string, label: string) =>
+      H.memo(
+        token,
+        H.button(
+          [on("click", () => "clicked")],
+          [H.text(label)]
+        )
+      );
+
+    const mounted = DomRenderer.mount(
+      root,
+      view("same", "Before"),
+      (event: unknown) => events.push(String(event))
+    );
+
+    DomRenderer.patch(
+      mounted,
+      view("same", "After"),
+      (event: unknown) => events.push(String(event))
+    );
+
+    const button = root.querySelector("button");
+    expect(button).not.toBeNull();
+    expect(button!.textContent).toBe("Before");
+
+    button!.click();
+
+    expect(events).toEqual(["clicked"]);
+  });
+
   it("does not duplicate dispatched events after repeated patches", () => {
     const H = html(TreeAlgebra);
     const root = document.createElement("div");

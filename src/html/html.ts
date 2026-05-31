@@ -85,6 +85,7 @@ export function html<Ui>(
     text: A.text.bind(A),
     concat: A.concat.bind(A),
     keyed: A.keyed.bind(A),
+    memo: A.memo.bind(A),
     mapEvent: A.mapEvent.bind(A),
 
     div: node("div"),

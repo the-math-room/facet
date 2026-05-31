@@ -72,6 +72,8 @@ When optimizing the DOM renderer, preserve observable equivalence with the simpl
 The DOM renderer performs conservative same-position reconciliation directly over the tree representation:
 
 - lazy mapped-event nodes are evaluated during render/patch
+- memo nodes are denotationally equivalent to their child
+- unchanged memo tokens may preserve interpreted DOM subtrees
 - text nodes update in place
 - same-tag elements update in place
 - different tags are replaced

@@ -14,3 +14,4 @@ facet-context.md
 /scripts/harden-dom-*.sh
 /scripts/add-test-*.sh
 /scripts/optimize-keyed-*.sh
+/scripts/add-memo-*.sh

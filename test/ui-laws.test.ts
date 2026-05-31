@@ -50,6 +50,17 @@ describe("UiAlgebra laws for TreeAlgebra", () => {
   it("satisfies mapEvent preserving keyed identity", () => {
     expect(mapEventPreservesKeyedLaw(TreeAlgebra, denotationalEq)).toBe(true);
   });
+
+  it("memo is structurally equivalent to its child", () => {
+    const child = TreeAlgebra.text("child");
+
+    expect(
+      denotationalEq(
+        TreeAlgebra.memo("token", child),
+        child
+      )
+    ).toBe(true);
+  });
 });
 
 function denotationalEq<Event>(
@@ -84,6 +95,9 @@ function normalize<Event>(tree: Tree<Event>): Normal {
       return tree;
 
     case "mapped":
+      return normalize(tree.child);
+
+    case "memo":
       return normalize(tree.child);
 
     case "keyed":

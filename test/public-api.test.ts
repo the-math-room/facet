@@ -33,6 +33,10 @@ describe("public API", () => {
       children: [{ kind: "text", value: "Click" }]
     });
 
+    const memoUi = H.memo("stable", ui);
+
+    expect(renderToJson(memoUi)).toEqual(renderToJson(ui));
+
     expect(DomRenderer).toHaveProperty("mount");
     expect(DomRenderer).toHaveProperty("patch");
     expect(DomRenderer).toHaveProperty("unmount");

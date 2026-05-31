@@ -27,3 +27,5 @@ facet-context.md
 /scripts/add-aria-alias-*.sh
 /scripts/add-reference-*.sh
 /scripts/add-boundary-*.sh
+/scripts/add-string-*.sh
+/scripts/add-adt-testing-*.sh

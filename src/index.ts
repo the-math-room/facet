@@ -62,3 +62,26 @@ export type {
   JsonAttribute,
   JsonView
 } from "./test-renderer";
+
+export {
+  renderToHtml,
+  renderTreeToHtml
+} from "./string";
+
+export type {
+  QueryAttribute,
+  QueryNode,
+  TestEventInit
+} from "./testing";
+
+export {
+  createTestEvent,
+  fireEvent,
+  inspect,
+  queryAllByAttribute,
+  queryAllByTag,
+  queryAllByText,
+  queryByAttribute,
+  queryByTag,
+  queryByText
+} from "./testing";

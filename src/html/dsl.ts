@@ -148,10 +148,10 @@ export function htmlDsl<Ui>(
     },
 
     onKeyDown<Event>(
-      decode: (key: string, event: KeyboardEvent) => Event | null
+      decode: (key: string, event: globalThis.Event) => Event | null
     ): HtmlAttribute<Event> {
       return on("keydown", (event) => {
-        if (event instanceof KeyboardEvent) {
+        if (isKeyboardLikeEvent(event)) {
           return decode(event.key, event);
         }
 
@@ -459,16 +459,24 @@ function isHtmlAttribute(value: unknown): value is HtmlAttribute<unknown> {
 
 function isTextValueTarget(
   target: EventTarget | null
-): target is HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement {
+): target is EventTarget & { readonly value: string } {
   return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement
+    target !== null &&
+    typeof (target as { readonly value?: unknown }).value === "string"
   );
 }
 
 function isCheckedTarget(
   target: EventTarget | null
-): target is HTMLInputElement {
-  return target instanceof HTMLInputElement;
+): target is EventTarget & { readonly checked: boolean } {
+  return (
+    target !== null &&
+    typeof (target as { readonly checked?: unknown }).checked === "boolean"
+  );
+}
+
+function isKeyboardLikeEvent(
+  event: globalThis.Event
+): event is globalThis.Event & { readonly key: string } {
+  return typeof (event as { readonly key?: unknown }).key === "string";
 }

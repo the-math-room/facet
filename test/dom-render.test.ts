@@ -592,6 +592,81 @@ describe("DomRenderer", () => {
     ).toThrow(/Duplicate keyed child "a"/);
   });
 
+  it("keeps already ordered keyed children in place when appending", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    const view = (order: readonly string[]) =>
+      H.ul(
+        [],
+        order.map((name) =>
+          H.keyed(
+            name,
+            H.li([], [H.text(name)])
+          )
+        )
+      );
+
+    const mounted = DomRenderer.mount(
+      root,
+      view(["A", "B", "C"]),
+      () => {}
+    );
+
+    const before = Array.from(root.querySelectorAll("li"));
+
+    DomRenderer.patch(
+      mounted,
+      view(["A", "B", "C", "D"]),
+      () => {}
+    );
+
+    const after = Array.from(root.querySelectorAll("li"));
+
+    expect(after.map((node) => node.textContent)).toEqual(["A", "B", "C", "D"]);
+    expect(after[0]).toBe(before[0]);
+    expect(after[1]).toBe(before[1]);
+    expect(after[2]).toBe(before[2]);
+  });
+
+  it("moves last keyed child to front while preserving all keyed nodes", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    const view = (order: readonly string[]) =>
+      H.ul(
+        [],
+        order.map((name) =>
+          H.keyed(
+            name,
+            H.li([], [H.text(name)])
+          )
+        )
+      );
+
+    const mounted = DomRenderer.mount(
+      root,
+      view(["A", "B", "C", "D"]),
+      () => {}
+    );
+
+    const before = Array.from(root.querySelectorAll("li"));
+
+    DomRenderer.patch(
+      mounted,
+      view(["D", "A", "B", "C"]),
+      () => {}
+    );
+
+    const after = Array.from(root.querySelectorAll("li"));
+
+    expect(after.map((node) => node.textContent)).toEqual(["D", "A", "B", "C"]);
+    expect(after[0]).toBe(before[3]);
+    expect(after[1]).toBe(before[0]);
+    expect(after[2]).toBe(before[1]);
+    expect(after[3]).toBe(before[2]);
+  });
+
   it("does not duplicate dispatched events after repeated patches", () => {
     const H = html(TreeAlgebra);
     const root = document.createElement("div");

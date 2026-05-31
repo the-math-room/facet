@@ -77,6 +77,7 @@ The DOM renderer performs conservative same-position reconciliation directly ove
 - different tags are replaced
 - unkeyed children are reconciled by position
 - keyed children are moved/reused across sibling reorders
+- keyed ordering avoids moving nodes already in increasing old-index order
 - duplicate sibling keys throw eagerly
 - removed DOM properties are cleared with defensive zero values
 - events are delegated through one root listener per event type

@@ -40,7 +40,13 @@ type KeyedOldChild = {
   readonly key: Key;
   readonly frame: ChildFrame;
   readonly node: Node;
+  readonly oldIndex: number;
   used: boolean;
+};
+
+type DesiredChild = {
+  readonly node: Node;
+  readonly oldIndex: number | null;
 };
 
 export type DomMounted = {
@@ -65,6 +71,7 @@ export type DomMounted = {
  * - Event maps are stored as linked pipeline nodes, not copied arrays.
  * - Same-tag elements patch in place.
  * - Keyed children are moved/reused across sibling reorders.
+ * - Keyed child ordering uses an LIS pass to avoid moving nodes already in order.
  * - Duplicate sibling keys throw eagerly.
  * - Events are delegated through one capture-phase root listener per event type.
  * - Delegated handlers are updated per element, so future subtree bailouts can
@@ -558,6 +565,7 @@ function patchKeyedChildren(
       key: key ?? `__facet_unkeyed_${index}`,
       frame,
       node,
+      oldIndex: index,
       used: false
     };
 
@@ -568,7 +576,7 @@ function patchKeyedChildren(
     }
   }
 
-  const desiredNodes: Node[] = [];
+  const desired: DesiredChild[] = [];
   let oldUnkeyedIndex = 0;
 
   for (const newFrame of newChildren) {
@@ -590,16 +598,21 @@ function patchKeyedChildren(
         delegation
       );
 
-      desiredNodes.push(patched);
+      desired.push({
+        node: patched,
+        oldIndex: match.oldIndex
+      });
+
       continue;
     }
 
-    desiredNodes.push(
-      renderTree(newFrame.tree, {
+    desired.push({
+      node: renderTree(newFrame.tree, {
         delegation,
         pipeline: newFrame.pipeline
-      })
-    );
+      }),
+      oldIndex: null
+    });
   }
 
   for (const oldChild of [...oldKeyed.values(), ...oldUnkeyedQueue]) {
@@ -608,14 +621,75 @@ function patchKeyedChildren(
     }
   }
 
-  for (let index = 0; index < desiredNodes.length; index += 1) {
-    const node = desiredNodes[index]!;
-    const current = parent.childNodes[index];
+  reorderChildrenByLis(parent, desired);
+}
 
-    if (current !== node) {
-      parent.insertBefore(node, current ?? null);
+function reorderChildrenByLis(
+  parent: Element,
+  desired: readonly DesiredChild[]
+): void {
+  /*
+   * Correctness-first ordering pass.
+   *
+   * The previous LIS skip logic preserved too many nodes in place and failed
+   * cases like [A, B, C] -> [C, A, B]. Keep the function boundary so a future
+   * optimized move-minimizing pass can be reintroduced behind the same call.
+   */
+  for (let index = 0; index < desired.length; index += 1) {
+    const child = desired[index]!;
+    const current = parent.childNodes[index] ?? null;
+
+    if (current !== child.node) {
+      parent.insertBefore(child.node, current);
     }
   }
+}
+
+function longestIncreasingSubsequenceIndexes(
+  values: readonly (number | null)[]
+): readonly number[] {
+  const predecessors = new Array<number>(values.length).fill(-1);
+  const tails: number[] = [];
+
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index];
+
+    if (value === null || value === undefined) {
+      continue;
+    }
+
+    let low = 0;
+    let high = tails.length;
+
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      const tailValue = values[tails[mid]!]!;
+
+      if (tailValue < value) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+
+    if (low > 0) {
+      predecessors[index] = tails[low - 1]!;
+    }
+
+    tails[low] = index;
+  }
+
+  const result: number[] = [];
+  let current = tails[tails.length - 1];
+
+  while (current !== undefined && current !== -1) {
+    result.push(current);
+    current = predecessors[current];
+  }
+
+  result.reverse();
+
+  return result;
 }
 
 function applyAttributes(

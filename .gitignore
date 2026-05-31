@@ -31,3 +31,4 @@ facet-context.md
 /scripts/add-adt-testing-*.sh
 /scripts/add-runtime-*.sh
 /scripts/consolidate-public-*.sh
+/scripts/update-architecture-docs.sh

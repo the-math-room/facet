@@ -2,46 +2,51 @@
 
 Facet is a TypeScript toolkit for building interactive UI denotationally.
 
-See `docs/LAYERS.md` for the meaning/projection/representation/interpretation split.
+See docs/LAYERS.md for the meaning/projection/representation/interpretation split.
 
 ## Single responsibility
 
 Facet's responsibility is narrow:
 
-> Interpret an interactive UI denotation into a concrete target while preserving the core algebra's laws and identity guarantees.
+> Describe interactive UI denotationally and interpret that representation through explicit, law-respecting layers.
 
 Facet should not become a kitchen-sink application framework.
 
 It should not own:
 
-- app state architecture
-- effects
+- app-specific state architecture
 - routing
 - data fetching
-- forms
+- form models
 - validation
 - animation
 - persistence
 - styling systems
+- component lifecycle
+- hooks
 
 Those can live in separate tools that target Facet's ADT.
+
+Facet may provide small optional shell utilities, such as src/runtime, as long as they keep impurity at the edge and do not change the UI denotation.
 
 ## Design boundaries
 
 Facet's core should stay representation-agnostic.
 
-`src/core` may define:
+src/core may define:
 
 - abstract UI operations
 - laws
 - platform-neutral types
 - helper interfaces
 
-`src/core` should not depend on:
+src/core should not depend on:
 
 - HTML helpers
 - the tree representation
 - the DOM renderer
+- string rendering
+- testing utilities
 - browser-specific node types
 - application state architecture
 - effects
@@ -54,26 +59,52 @@ Facet's core should stay representation-agnostic.
 
 Use this order when deciding where a feature belongs:
 
-1. Domain/application code owns meaning and state transitions.
-2. Representation code projects meaning/state into a UI denotation.
-3. `src/core` defines abstract operations and laws.
-4. `src/html` defines HTML-specific helpers.
-   - `src/html/html.ts` keeps the explicit array-based helper API.
-   - `src/html/dsl.ts` provides a thin mixed-argument authoring DSL over the same algebra.
-5. `src/tree` defines one concrete HTML tree representation.
-6. `src/dom` interprets that representation into the browser DOM.
-7. `src/test-renderer` provides a non-DOM interpreter for normalized structural tests.
-8. Future packages can own routing, forms, resources, animation, devtools, and other ecosystem concerns.
+1. Domain/application code owns meaning, state, event vocabularies, and transitions.
+2. Projection code maps meaning/state into a UI denotation.
+3. src/core defines abstract operations, laws, Renderer, Dispatch, and platform-neutral types.
+4. src/html defines HTML-specific vocabulary and helpers.
+   - src/html/html.ts keeps the explicit array-based helper API.
+   - src/html/dsl.ts provides a thin mixed-argument authoring DSL over the same algebra.
+5. src/tree defines one concrete HTML tree representation.
+6. src/dom interprets that representation into the browser DOM.
+7. src/string interprets that representation into static HTML text.
+8. src/test-renderer provides normalized structural JSON for tests.
+9. src/testing provides pure ADT-level inspection, queries, and event decoder tests.
+10. src/runtime provides an optional app/effect loop that keeps effects at the edge.
+11. src/examples demonstrates usage; examples are allowed to compose layers.
+
+## Pure and impure code
+
+Prefer this split:
+
+Pure:
+
+- domain update functions
+- view/projection functions
+- laws
+- tree construction
+- renderToJson
+- renderToHtml
+- ADT testing queries
+
+Impure:
+
+- DOM mounting and patching
+- browser event handling
+- runEffect implementations
+- app entrypoints
+
+Do not hide impurity inside the DSL or core algebra.
 
 ## Laws before optimization
 
 When changing the core algebra or tree representation, prefer adding or updating laws first.
 
-When optimizing the DOM renderer, preserve observable equivalence with the simple renderer except where explicit identity laws promise preservation.
+When optimizing an interpreter, preserve observable equivalence with the simple interpretation except where explicit identity or memoization rules permit preservation or bailout.
 
 ## Current renderer status
 
-The DOM renderer performs conservative same-position reconciliation directly over the tree representation:
+The DOM renderer performs conservative reconciliation directly over the tree representation:
 
 - lazy mapped-event nodes are evaluated during render/patch
 - memo nodes are denotationally equivalent to their child
@@ -91,3 +122,13 @@ The next renderer milestones are:
 
 - explicit tests for more form controls and selection preservation
 - additional keyed-reconciliation benchmarks for realistic partial reorders
+
+## Boundary checks
+
+Run npm run check before committing.
+
+The check script runs:
+
+- TypeScript typechecking
+- Vitest tests
+- source-layer boundary checks

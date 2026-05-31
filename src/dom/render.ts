@@ -4,7 +4,13 @@ import type { Tree, TreeUi } from "../tree/tree-ui";
 import { exposeTree } from "../tree/tree-ui";
 
 type EventMap = (event: unknown) => unknown;
-type EventPipeline = readonly EventMap[];
+
+type EventPipeline =
+  | {
+      readonly map: EventMap;
+      readonly parent: EventPipeline;
+    }
+  | null;
 
 type ChildFrame = {
   readonly tree: Tree<unknown>;
@@ -56,9 +62,10 @@ export type DomMounted = {
  * Performance-oriented choices:
  *
  * - Lazy mapped-event nodes are evaluated during render/patch.
- * - Event maps are stored as flat pipelines, not nested closure chains.
+ * - Event maps are stored as linked pipeline nodes, not copied arrays.
  * - Same-tag elements patch in place.
  * - Keyed children are moved/reused across sibling reorders.
+ * - Duplicate sibling keys throw eagerly.
  * - Events are delegated through one capture-phase root listener per event type.
  * - Delegated handlers are updated per element, so future subtree bailouts can
  *   preserve existing handlers instead of requiring a global event-table rebuild.
@@ -66,7 +73,7 @@ export type DomMounted = {
  * Still intentionally not implemented:
  *
  * - subtree bailout/memoization
- * - advanced form control semantics
+ * - advanced form control semantics beyond defensive property clearing
  */
 export const DomRenderer: Renderer<TreeUi, Element, DomMounted> = {
   mount<Event>(
@@ -87,7 +94,7 @@ export const DomRenderer: Renderer<TreeUi, Element, DomMounted> = {
 
     const root = renderTree(tree, {
       delegation,
-      pipeline: []
+      pipeline: null
     });
 
     target.appendChild(root);
@@ -112,9 +119,9 @@ export const DomRenderer: Renderer<TreeUi, Element, DomMounted> = {
     const nextRoot = patchNode(
       mounted.root,
       mounted.tree,
-      [],
+      null,
       nextTree,
-      [],
+      null,
       mounted.delegation
     );
 
@@ -139,9 +146,11 @@ function applyPipeline(
   event: unknown
 ): unknown {
   let current = event;
+  let node = pipeline;
 
-  for (let index = pipeline.length - 1; index >= 0; index -= 1) {
-    current = pipeline[index]!(current);
+  while (node !== null) {
+    current = node.map(current);
+    node = node.parent;
   }
 
   return current;
@@ -151,7 +160,10 @@ function appendMap(
   pipeline: EventPipeline,
   map: EventMap
 ): EventPipeline {
-  return [...pipeline, map];
+  return {
+    map,
+    parent: pipeline
+  };
 }
 
 function renderTree(
@@ -176,8 +188,11 @@ function renderTree(
 
     case "concat": {
       const fragment = document.createDocumentFragment();
+      const children = flattenChildren(tree.children, context.pipeline);
 
-      for (const frame of flattenChildren(tree.children, context.pipeline)) {
+      assertUniqueKeys(children, "mounted");
+
+      for (const frame of children) {
         fragment.appendChild(
           renderTree(frame.tree, {
             ...context,
@@ -208,10 +223,14 @@ function renderTree(
 
 function appendChildren(
   parent: Element,
-  children: readonly Tree<unknown>[],
+  childrenRaw: readonly Tree<unknown>[],
   context: RenderContext
 ): void {
-  for (const frame of flattenChildren(children, context.pipeline)) {
+  const children = flattenChildren(childrenRaw, context.pipeline);
+
+  assertUniqueKeys(children, "mounted");
+
+  for (const frame of children) {
     parent.appendChild(
       renderTree(frame.tree, {
         ...context,
@@ -382,24 +401,40 @@ function flattenChildren(
 ): readonly ChildFrame[] {
   const result: ChildFrame[] = [];
 
-  for (const child of children) {
-    if (child.kind === "concat") {
-      result.push(...flattenChildren(child.children, pipeline));
-      continue;
-    }
-
-    if (child.kind === "mapped") {
-      result.push(...flattenChildren([child.child], appendMap(pipeline, child.map)));
-      continue;
-    }
-
-    result.push({
-      tree: child,
-      pipeline
-    });
-  }
+  pushFlattenedChildren(result, children, pipeline);
 
   return result;
+}
+
+function pushFlattenedChildren(
+  result: ChildFrame[],
+  children: readonly Tree<unknown>[],
+  pipeline: EventPipeline
+): void {
+  for (const child of children) {
+    pushFlattenedChild(result, child, pipeline);
+  }
+}
+
+function pushFlattenedChild(
+  result: ChildFrame[],
+  child: Tree<unknown>,
+  pipeline: EventPipeline
+): void {
+  if (child.kind === "concat") {
+    pushFlattenedChildren(result, child.children, pipeline);
+    return;
+  }
+
+  if (child.kind === "mapped") {
+    pushFlattenedChild(result, child.child, appendMap(pipeline, child.map));
+    return;
+  }
+
+  result.push({
+    tree: child,
+    pipeline
+  });
 }
 
 function patchChildren(
@@ -413,6 +448,9 @@ function patchChildren(
   const oldChildren = flattenChildren(oldChildrenRaw, oldPipeline);
   const newChildren = flattenChildren(newChildrenRaw, newPipeline);
 
+  assertUniqueKeys(oldChildren, "old");
+  assertUniqueKeys(newChildren, "new");
+
   if (hasAnyKey(oldChildren) || hasAnyKey(newChildren)) {
     patchKeyedChildren(parent, oldChildren, newChildren, delegation);
     return;
@@ -423,6 +461,27 @@ function patchChildren(
 
 function hasAnyKey(children: readonly ChildFrame[]): boolean {
   return children.some((child) => keyOfFrame(child) !== null);
+}
+
+function assertUniqueKeys(
+  children: readonly ChildFrame[],
+  label: string
+): void {
+  const seen = new Set<Key>();
+
+  for (const child of children) {
+    const key = keyOfFrame(child);
+
+    if (key === null) {
+      continue;
+    }
+
+    if (seen.has(key)) {
+      throw new Error(`Duplicate keyed child "${String(key)}" in ${label} children.`);
+    }
+
+    seen.add(key);
+  }
 }
 
 function patchChildrenByPosition(
@@ -686,7 +745,7 @@ function removeOldAttributes(
               attribute.name === oldAttribute.name
           )
         ) {
-          Reflect.set(element, oldAttribute.name, undefined);
+          clearProperty(element, oldAttribute.name);
         }
 
         break;
@@ -711,3 +770,86 @@ function removeOldAttributes(
     }
   }
 }
+
+function clearProperty(
+  element: Element,
+  name: string
+): void {
+  if (booleanProperties.has(name)) {
+    Reflect.set(element, name, false);
+    element.removeAttribute(name.toLowerCase());
+    return;
+  }
+
+  if (stringProperties.has(name)) {
+    Reflect.set(element, name, "");
+    return;
+  }
+
+  if (numberProperties.has(name)) {
+    Reflect.set(element, name, 0);
+    return;
+  }
+
+  const current = Reflect.get(element, name);
+
+  switch (typeof current) {
+    case "boolean":
+      Reflect.set(element, name, false);
+      break;
+
+    case "number":
+      Reflect.set(element, name, 0);
+      break;
+
+    case "string":
+      Reflect.set(element, name, "");
+      break;
+
+    default:
+      Reflect.set(element, name, null);
+      break;
+  }
+}
+
+const booleanProperties = new Set<string>([
+  "autofocus",
+  "checked",
+  "controls",
+  "defaultChecked",
+  "defer",
+  "disabled",
+  "hidden",
+  "loop",
+  "multiple",
+  "muted",
+  "open",
+  "readOnly",
+  "required",
+  "selected"
+]);
+
+const stringProperties = new Set<string>([
+  "alt",
+  "className",
+  "defaultValue",
+  "dir",
+  "download",
+  "href",
+  "id",
+  "name",
+  "placeholder",
+  "rel",
+  "src",
+  "target",
+  "textContent",
+  "title",
+  "type",
+  "value"
+]);
+
+const numberProperties = new Set<string>([
+  "colSpan",
+  "rowSpan",
+  "tabIndex"
+]);

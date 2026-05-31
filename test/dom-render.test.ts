@@ -490,6 +490,108 @@ describe("DomRenderer", () => {
     expect(after[1]).toBe(before[0]);
   });
 
+  it("clears removed string DOM properties defensively", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    const mounted = DomRenderer.mount(
+      root,
+      H.input<string>(
+        [prop<string>("value", "Hello")],
+        []
+      ),
+      () => {}
+    );
+
+    const input = root.querySelector("input");
+    expect(input).not.toBeNull();
+    expect(input).toHaveProperty("value", "Hello");
+
+    DomRenderer.patch(
+      mounted,
+      H.input<string>([], []),
+      () => {}
+    );
+
+    expect(input).toHaveProperty("value", "");
+  });
+
+  it("clears removed boolean DOM properties defensively", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    const mounted = DomRenderer.mount(
+      root,
+      H.button<string>(
+        [prop<string>("disabled", true)],
+        [H.text("Disabled")]
+      ),
+      () => {}
+    );
+
+    const button = root.querySelector("button");
+    expect(button).not.toBeNull();
+    expect(button).toHaveProperty("disabled", true);
+
+    DomRenderer.patch(
+      mounted,
+      H.button<string>([], [H.text("Enabled")]),
+      () => {}
+    );
+
+    expect(button).toHaveProperty("disabled", false);
+  });
+
+  it("throws on duplicate keyed children during mount", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    expect(() =>
+      DomRenderer.mount(
+        root,
+        H.ul(
+          [],
+          [
+            H.keyed("a", H.li([], [H.text("first")])),
+            H.keyed("a", H.li([], [H.text("second")]))
+          ]
+        ),
+        () => {}
+      )
+    ).toThrow(/Duplicate keyed child "a"/);
+  });
+
+  it("throws on duplicate keyed children during patch", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    const mounted = DomRenderer.mount(
+      root,
+      H.ul(
+        [],
+        [
+          H.keyed("a", H.li([], [H.text("first")])),
+          H.keyed("b", H.li([], [H.text("second")]))
+        ]
+      ),
+      () => {}
+    );
+
+    expect(() =>
+      DomRenderer.patch(
+        mounted,
+        H.ul(
+          [],
+          [
+            H.keyed("a", H.li([], [H.text("first")])),
+            H.keyed("a", H.li([], [H.text("second")]))
+          ]
+        ),
+        () => {}
+      )
+    ).toThrow(/Duplicate keyed child "a"/);
+  });
+
   it("does not duplicate dispatched events after repeated patches", () => {
     const H = html(TreeAlgebra);
     const root = document.createElement("div");

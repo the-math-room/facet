@@ -11,3 +11,4 @@ facet-context.md
 /scripts/tighten-*.sh
 /scripts/harden-*.sh
 /scripts/add-keyed-*.sh
+/scripts/harden-dom-*.sh

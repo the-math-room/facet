@@ -1,5 +1,5 @@
 import type { Key, UiAlgebra, UiOf } from "../core/ui";
-import type { HtmlAttribute, HtmlAttributeAny, HtmlTag } from "../core/html";
+import type { HtmlAttribute, HtmlAttributeAny, HtmlTag } from "../html/html";
 
 export type Tree<Event> =
   | { readonly kind: "empty" }
@@ -29,7 +29,7 @@ export type TreeUi = Tree<unknown>;
 
 /**
  * This module is the intentional bridge between the abstract Facet ADT and
- * this concrete tree representation. The casts are localized here because
+ * this concrete HTML tree representation. The casts are localized here because
  * TypeScript cannot directly express the higher-kinded relationship between
  * Tree<Event> and UiOf<TreeUi, Event>.
  */

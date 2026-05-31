@@ -8,3 +8,4 @@ facet-context.md
 /scripts/update-*.sh
 /scripts/add-*.sh
 /scripts/remove-*.sh
+/scripts/tighten-*.sh

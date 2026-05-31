@@ -2,6 +2,28 @@
 
 Facet is a TypeScript toolkit for building interactive UI denotationally.
 
+## Single responsibility
+
+Facet's responsibility is narrow:
+
+> Interpret an interactive UI denotation into a concrete target while preserving the core algebra's laws and identity guarantees.
+
+Facet should not become a kitchen-sink application framework.
+
+It should not own:
+
+- app state architecture
+- effects
+- routing
+- data fetching
+- forms
+- validation
+- animation
+- persistence
+- styling systems
+
+Those can live in separate tools that target Facet's ADT.
+
 ## Design boundaries
 
 Facet's core should stay representation-agnostic.
@@ -15,6 +37,7 @@ Facet's core should stay representation-agnostic.
 
 `src/core` should not depend on:
 
+- HTML helpers
 - the tree representation
 - the DOM renderer
 - browser-specific node types
@@ -32,9 +55,10 @@ Use this order when deciding where a feature belongs:
 1. Domain/application code owns meaning and state transitions.
 2. Representation code projects meaning/state into a UI denotation.
 3. `src/core` defines abstract operations and laws.
-4. `src/tree` defines one concrete representation.
-5. `src/dom` interprets that representation into the browser DOM.
-6. Future packages can own routing, forms, resources, animation, devtools, and other ecosystem concerns.
+4. `src/html` defines HTML-specific helpers.
+5. `src/tree` defines one concrete HTML tree representation.
+6. `src/dom` interprets that representation into the browser DOM.
+7. Future packages can own routing, forms, resources, animation, devtools, and other ecosystem concerns.
 
 ## Laws before optimization
 
@@ -44,18 +68,18 @@ When optimizing the DOM renderer, preserve observable equivalence with the simpl
 
 ## Current renderer status
 
-The DOM renderer performs a conservative same-position reconciliation directly over the tree representation:
+The DOM renderer performs conservative same-position reconciliation directly over the tree representation:
 
+- lazy mapped-event nodes are evaluated during render/patch
 - text nodes update in place
 - same-tag elements update in place
 - different tags are replaced
 - children are reconciled by position
-- lazy mapped-event nodes are evaluated during render/patch, without a separate resolved-tree allocation
+- events are delegated through one root listener per event type
 - full keyed child reordering is not implemented yet
 
 The next renderer milestones are:
 
 - keyed child reconciliation
-- event delegation
 - better attribute/property semantics
 - explicit tests for form controls and selection preservation

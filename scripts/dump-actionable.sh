@@ -389,7 +389,7 @@ cat <<'GUIDANCE' | emit
 When extending or refactoring Facet, preserve these constraints unless intentionally changing the design:
 
 - Keep `src/core` representation-agnostic.
-- Do not import from `src/tree` or `src/dom` inside `src/core`.
+- Do not import from `src/html`, `src/tree`, or `src/dom` inside `src/core`.
 - Keep app state and update functions outside the Facet core.
 - Prefer adding laws/tests before optimizing implementation.
 - Treat the tree representation as one model, not the definition of the toolkit.

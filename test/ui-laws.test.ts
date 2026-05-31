@@ -15,7 +15,7 @@ import {
   type Tree,
   type TreeUi
 } from "../src/tree/tree-ui";
-import type { HtmlAttribute } from "../src/core/html";
+import type { HtmlAttribute } from "../src/html/html";
 import type { UiOf } from "../src/core/ui";
 
 describe("UiAlgebra laws for TreeAlgebra", () => {

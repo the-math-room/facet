@@ -1,4 +1,4 @@
-import type { UiAlgebra, UiOf } from "./ui";
+import type { UiAlgebra, UiOf } from "../core/ui";
 
 export type HtmlTag =
   | "div"

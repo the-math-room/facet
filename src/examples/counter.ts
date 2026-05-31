@@ -6,7 +6,7 @@ import {
   html,
   on,
   prop
-} from "../core/html";
+} from "../html/html";
 
 export type CounterState = {
   readonly count: number;

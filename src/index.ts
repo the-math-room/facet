@@ -7,28 +7,31 @@ export type {
 } from "./core";
 
 export {
-  attr,
-  className,
   concatAssociativityLaw,
   concatEmptyLaw,
   concatLeftIdentityLaw,
   concatRightIdentityLaw,
   fragmentAssociativityLaw,
   fragmentIdentityLaw,
-  html,
   mapEventCompositionLaw,
   mapEventIdentityLaw,
   mapEventPreservesConcatLaw,
-  mapEventPreservesKeyedLaw,
-  on,
-  prop
+  mapEventPreservesKeyedLaw
 } from "./core";
 
 export type {
   HtmlAttribute,
   HtmlAttributeAny,
   HtmlTag
-} from "./core";
+} from "./html";
+
+export {
+  attr,
+  className,
+  html,
+  on,
+  prop
+} from "./html";
 
 export {
   TreeAlgebra,

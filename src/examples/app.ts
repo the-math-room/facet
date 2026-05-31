@@ -1,5 +1,5 @@
 import type { Renderer, UiAlgebra } from "../core/ui";
-import type { HtmlAttributeAny, HtmlTag } from "../core/html";
+import type { HtmlAttributeAny, HtmlTag } from "../html/html";
 import {
   type CounterEvent,
   type CounterState,

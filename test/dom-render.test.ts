@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { html, on, prop } from "../src/core/html";
+import { html, on, prop } from "../src/html/html";
 import { DomRenderer } from "../src/dom/render";
 import { TreeAlgebra } from "../src/tree/tree-ui";
 
@@ -17,27 +17,87 @@ describe("DomRenderer", () => {
     expect(root.textContent).toBe("Hello");
   });
 
-  it("dispatches decoded events", () => {
+  it("delegates decoded events from the root", () => {
     const H = html(TreeAlgebra);
     const root = document.createElement("div");
+
+    let rootListenerCount = 0;
+    const originalAddEventListener = root.addEventListener.bind(root);
+
+    root.addEventListener = ((...args: Parameters<Element["addEventListener"]>) => {
+      rootListenerCount += 1;
+      originalAddEventListener(...args);
+    }) as Element["addEventListener"];
 
     const events: string[] = [];
 
     DomRenderer.mount(
       root,
-      H.button(
-        [on("click", () => "clicked")],
-        [H.text("Click")]
+      H.div(
+        [],
+        [
+          H.button(
+            [on("click", () => "first")],
+            [H.text("First")]
+          ),
+          H.button(
+            [on("click", () => "second")],
+            [H.text("Second")]
+          )
+        ]
       ),
       (event) => events.push(event)
     );
 
-    const button = root.querySelector("button");
-    expect(button).not.toBeNull();
+    expect(rootListenerCount).toBe(1);
 
-    button!.click();
+    const buttons = root.querySelectorAll("button");
+    buttons[0]!.click();
+    buttons[1]!.click();
 
-    expect(events).toEqual(["clicked"]);
+    expect(events).toEqual(["first", "second"]);
+  });
+
+  it("does not add duplicate delegated root listeners after patches", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    let rootListenerCount = 0;
+    const originalAddEventListener = root.addEventListener.bind(root);
+
+    root.addEventListener = ((...args: Parameters<Element["addEventListener"]>) => {
+      rootListenerCount += 1;
+      originalAddEventListener(...args);
+    }) as Element["addEventListener"];
+
+    const mounted = DomRenderer.mount(
+      root,
+      H.button(
+        [on("click", () => "clicked")],
+        [H.text("Click")]
+      ),
+      () => {}
+    );
+
+    DomRenderer.patch(
+      mounted,
+      H.button(
+        [on("click", () => "clicked")],
+        [H.text("Click")]
+      ),
+      () => {}
+    );
+
+    DomRenderer.patch(
+      mounted,
+      H.button(
+        [on("click", () => "clicked")],
+        [H.text("Click")]
+      ),
+      () => {}
+    );
+
+    expect(rootListenerCount).toBe(1);
   });
 
   it("dispatches lazily mapped events", () => {
@@ -81,7 +141,7 @@ describe("DomRenderer", () => {
     ]);
   });
 
-  it("dispatches patched mapped events without a resolved-tree pass", () => {
+  it("dispatches patched mapped events", () => {
     const H = html(TreeAlgebra);
     const root = document.createElement("div");
 
@@ -229,7 +289,7 @@ describe("DomRenderer", () => {
     }
   });
 
-  it("does not duplicate listeners after repeated patches", () => {
+  it("does not duplicate dispatched events after repeated patches", () => {
     const H = html(TreeAlgebra);
     const root = document.createElement("div");
     const events: string[] = [];

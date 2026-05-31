@@ -50,3 +50,12 @@ export {
 export type {
   DomMounted
 } from "./dom/render";
+
+export {
+  renderToJson
+} from "./test-renderer";
+
+export type {
+  JsonAttribute,
+  JsonView
+} from "./test-renderer";

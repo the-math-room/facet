@@ -58,7 +58,8 @@ Use this order when deciding where a feature belongs:
 4. `src/html` defines HTML-specific helpers.
 5. `src/tree` defines one concrete HTML tree representation.
 6. `src/dom` interprets that representation into the browser DOM.
-7. Future packages can own routing, forms, resources, animation, devtools, and other ecosystem concerns.
+7. `src/test-renderer` provides a non-DOM interpreter for normalized structural tests.
+8. Future packages can own routing, forms, resources, animation, devtools, and other ecosystem concerns.
 
 ## Laws before optimization
 

@@ -4,6 +4,304 @@ import { renderToJson } from "../src/test-renderer";
 import { TreeAlgebra } from "../src/tree/tree-ui";
 
 describe("htmlDsl", () => {
+  it("supports fragment, when, unless, and maybe helpers", () => {
+    const H = htmlDsl(TreeAlgebra);
+
+    const user: { readonly name: string } | null = { name: "Ada" };
+
+    const ui = H.section(
+      H.fragment(
+        H.h1("Title"),
+        H.p("Intro")
+      ),
+      H.when(true, H.p("Visible")),
+      H.when(false, H.p("Hidden")),
+      H.unless(false, H.p("Unless visible")),
+      H.unless(true, H.p("Unless hidden")),
+      H.maybe(user, (presentUser) =>
+        H.p(`User: ${presentUser.name}`)
+      ),
+      H.maybe(null as string | null, (value) =>
+        H.p(value)
+      )
+    );
+
+    expect(renderToJson(ui)).toEqual({
+      kind: "node",
+      tag: "section",
+      attributes: [],
+      children: [
+        {
+          kind: "node",
+          tag: "h1",
+          attributes: [],
+          children: [{ kind: "text", value: "Title" }]
+        },
+        {
+          kind: "node",
+          tag: "p",
+          attributes: [],
+          children: [{ kind: "text", value: "Intro" }]
+        },
+        {
+          kind: "node",
+          tag: "p",
+          attributes: [],
+          children: [{ kind: "text", value: "Visible" }]
+        },
+        {
+          kind: "node",
+          tag: "p",
+          attributes: [],
+          children: [{ kind: "text", value: "Unless visible" }]
+        },
+        {
+          kind: "node",
+          tag: "p",
+          attributes: [],
+          children: [{ kind: "text", value: "User: Ada" }]
+        }
+      ]
+    });
+  });
+
+  it("supports list and keyedList helpers", () => {
+    const H = htmlDsl(TreeAlgebra);
+
+    const items = [
+      { id: "a", label: "A" },
+      { id: "b", label: "B" }
+    ] as const;
+
+    const ui = H.div(
+      H.ul(
+        H.keyedList(
+          items,
+          (item) => item.id,
+          (item) => H.li(item.label)
+        )
+      ),
+      H.ol(
+        H.list(
+          items,
+          (item, index) => H.li(`${index + 1}. ${item.label}`)
+        )
+      )
+    );
+
+    expect(renderToJson(ui)).toEqual({
+      kind: "node",
+      tag: "div",
+      attributes: [],
+      children: [
+        {
+          kind: "node",
+          tag: "ul",
+          attributes: [],
+          children: [
+            {
+              kind: "keyed",
+              key: "a",
+              child: {
+                kind: "node",
+                tag: "li",
+                attributes: [],
+                children: [{ kind: "text", value: "A" }]
+              }
+            },
+            {
+              kind: "keyed",
+              key: "b",
+              child: {
+                kind: "node",
+                tag: "li",
+                attributes: [],
+                children: [{ kind: "text", value: "B" }]
+              }
+            }
+          ]
+        },
+        {
+          kind: "node",
+          tag: "ol",
+          attributes: [],
+          children: [
+            {
+              kind: "node",
+              tag: "li",
+              attributes: [],
+              children: [{ kind: "text", value: "1. A" }]
+            },
+            {
+              kind: "node",
+              tag: "li",
+              attributes: [],
+              children: [{ kind: "text", value: "2. B" }]
+            }
+          ]
+        }
+      ]
+    });
+  });
+
+
+  it("merges class attributes and supports conditional classes", () => {
+    const H = htmlDsl(TreeAlgebra);
+
+    const active = true;
+    const hidden = false;
+
+    const ui = H.div(
+      H.cls("button primary"),
+      active && H.cls("active"),
+      hidden && H.cls("hidden"),
+      H.className("rounded")
+    );
+
+    expect(renderToJson(ui)).toEqual({
+      kind: "node",
+      tag: "div",
+      attributes: [
+        { kind: "class", value: "button primary active rounded" }
+      ],
+      children: []
+    });
+  });
+
+  it("supports object aria and data helpers", () => {
+    const H = htmlDsl(TreeAlgebra);
+
+    const ui = H.button(
+      H.aria({
+        expanded: true,
+        controls: "menu-1",
+        label: "Toggle menu",
+        hidden: null
+      }),
+      H.data({
+        state: "open",
+        index: 1,
+        ignored: undefined
+      }),
+      "Toggle"
+    );
+
+    expect(renderToJson(ui)).toEqual({
+      kind: "node",
+      tag: "button",
+      attributes: [
+        { kind: "attribute", name: "aria-expanded", value: "true" },
+        { kind: "attribute", name: "aria-controls", value: "menu-1" },
+        { kind: "attribute", name: "aria-label", value: "Toggle menu" },
+        { kind: "attribute", name: "data-state", value: "open" },
+        { kind: "attribute", name: "data-index", value: "1" }
+      ],
+      children: [{ kind: "text", value: "Toggle" }]
+    });
+  });
+
+  it("supports single aria and data helper pairs", () => {
+    const H = htmlDsl(TreeAlgebra);
+
+    const ui = H.div(
+      H.aria("label", "Panel"),
+      H.data("kind", "demo")
+    );
+
+    expect(renderToJson(ui)).toEqual({
+      kind: "node",
+      tag: "div",
+      attributes: [
+        { kind: "attribute", name: "aria-label", value: "Panel" },
+        { kind: "attribute", name: "data-kind", value: "demo" }
+      ],
+      children: []
+    });
+  });
+
+  it("supports curried event mapping", () => {
+    const H = htmlDsl(TreeAlgebra);
+
+    type ChildEvent = { readonly type: "Child" };
+    type ParentEvent = {
+      readonly type: "Parent";
+      readonly event: ChildEvent;
+    };
+
+    const child = H.button<ChildEvent>(
+      H.on("click", () => ({ type: "Child" })),
+      "Click"
+    );
+
+    const parent = H.mapEvents<ChildEvent, ParentEvent>(
+      (event) => ({ type: "Parent", event })
+    )(child);
+
+    expect(renderToJson(parent)).toEqual({
+      kind: "node",
+      tag: "button",
+      attributes: [
+        { kind: "event", name: "click" }
+      ],
+      children: [
+        { kind: "text", value: "Click" }
+      ]
+    });
+  });
+
+  it("supports semantic form event helpers", () => {
+    const H = htmlDsl(TreeAlgebra);
+
+    type FormEvent =
+      | { readonly type: "Submitted" }
+      | { readonly type: "DraftChanged"; readonly text: string }
+      | { readonly type: "CheckedChanged"; readonly checked: boolean };
+
+    const ui = H.form<FormEvent>(
+      H.onSubmit<FormEvent>(() => ({ type: "Submitted" })),
+      H.input<FormEvent>(
+        H.onTextInput<FormEvent>((text) => ({
+          type: "DraftChanged",
+          text
+        }))
+      ),
+      H.input<FormEvent>(
+        H.type("checkbox"),
+        H.onCheckedChange<FormEvent>((checked) => ({
+          type: "CheckedChanged",
+          checked
+        }))
+      )
+    );
+
+    expect(renderToJson(ui)).toEqual({
+      kind: "node",
+      tag: "form",
+      attributes: [
+        { kind: "event", name: "submit" }
+      ],
+      children: [
+        {
+          kind: "node",
+          tag: "input",
+          attributes: [
+            { kind: "event", name: "input" }
+          ],
+          children: []
+        },
+        {
+          kind: "node",
+          tag: "input",
+          attributes: [
+            { kind: "property", name: "type", value: "checkbox" },
+            { kind: "event", name: "change" }
+          ],
+          children: []
+        }
+      ]
+    });
+  });
+
   it("lowers mixed attributes, strings, and children into the existing tree algebra", () => {
     const H = htmlDsl(TreeAlgebra);
 
@@ -127,6 +425,256 @@ describe("htmlDsl", () => {
       ],
       children: [
         { kind: "text", value: "Click" }
+      ]
+    });
+  });
+
+  it("supports expanded semantic HTML tags and common attribute helpers", () => {
+    const H = htmlDsl(TreeAlgebra);
+
+    const ui = H.article(
+      H.id("post-1"),
+      H.data("kind", "demo"),
+      H.aria("label", "Demo article"),
+      H.header(
+        H.h2("Title"),
+        H.p(H.small("Published today"))
+      ),
+      H.nav(
+        H.a(H.href("/docs"), H.rel("help"), "Docs")
+      ),
+      H.figure(
+        H.img(H.src("/facet.png"), H.alt("Facet logo")),
+        H.figcaption("A logo")
+      ),
+      H.pre(H.code("const x = 1;")),
+      H.table(
+        H.thead(
+          H.tr(H.th("Name"))
+        ),
+        H.tbody(
+          H.tr(H.td("Facet"))
+        )
+      )
+    );
+
+    expect(renderToJson(ui)).toEqual({
+      kind: "node",
+      tag: "article",
+      attributes: [
+        { kind: "property", name: "id", value: "post-1" },
+        { kind: "attribute", name: "data-kind", value: "demo" },
+        { kind: "attribute", name: "aria-label", value: "Demo article" }
+      ],
+      children: [
+        {
+          kind: "node",
+          tag: "header",
+          attributes: [],
+          children: [
+            {
+              kind: "node",
+              tag: "h2",
+              attributes: [],
+              children: [{ kind: "text", value: "Title" }]
+            },
+            {
+              kind: "node",
+              tag: "p",
+              attributes: [],
+              children: [
+                {
+                  kind: "node",
+                  tag: "small",
+                  attributes: [],
+                  children: [{ kind: "text", value: "Published today" }]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          kind: "node",
+          tag: "nav",
+          attributes: [],
+          children: [
+            {
+              kind: "node",
+              tag: "a",
+              attributes: [
+                { kind: "attribute", name: "href", value: "/docs" },
+                { kind: "attribute", name: "rel", value: "help" }
+              ],
+              children: [{ kind: "text", value: "Docs" }]
+            }
+          ]
+        },
+        {
+          kind: "node",
+          tag: "figure",
+          attributes: [],
+          children: [
+            {
+              kind: "node",
+              tag: "img",
+              attributes: [
+                { kind: "attribute", name: "src", value: "/facet.png" },
+                { kind: "attribute", name: "alt", value: "Facet logo" }
+              ],
+              children: []
+            },
+            {
+              kind: "node",
+              tag: "figcaption",
+              attributes: [],
+              children: [{ kind: "text", value: "A logo" }]
+            }
+          ]
+        },
+        {
+          kind: "node",
+          tag: "pre",
+          attributes: [],
+          children: [
+            {
+              kind: "node",
+              tag: "code",
+              attributes: [],
+              children: [{ kind: "text", value: "const x = 1;" }]
+            }
+          ]
+        },
+        {
+          kind: "node",
+          tag: "table",
+          attributes: [],
+          children: [
+            {
+              kind: "node",
+              tag: "thead",
+              attributes: [],
+              children: [
+                {
+                  kind: "node",
+                  tag: "tr",
+                  attributes: [],
+                  children: [
+                    {
+                      kind: "node",
+                      tag: "th",
+                      attributes: [],
+                      children: [{ kind: "text", value: "Name" }]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              kind: "node",
+              tag: "tbody",
+              attributes: [],
+              children: [
+                {
+                  kind: "node",
+                  tag: "tr",
+                  attributes: [],
+                  children: [
+                    {
+                      kind: "node",
+                      tag: "td",
+                      attributes: [],
+                      children: [{ kind: "text", value: "Facet" }]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    });
+  });
+
+  it("supports form-oriented property helpers", () => {
+    const H = htmlDsl(TreeAlgebra);
+
+    const ui = H.form(
+      H.label(H.attr("for", "name"), "Name"),
+      H.input(
+        H.id("name"),
+        H.name("name"),
+        H.type("text"),
+        H.value("Ada"),
+        H.placeholder("Your name"),
+        H.disabled(false)
+      ),
+      H.textarea(
+        H.name("bio"),
+        H.defaultValue("Hello")
+      ),
+      H.select(
+        H.name("choice"),
+        H.value("b"),
+        H.option(H.value("a"), "A"),
+        H.option(H.value("b"), "B")
+      )
+    );
+
+    expect(renderToJson(ui)).toEqual({
+      kind: "node",
+      tag: "form",
+      attributes: [],
+      children: [
+        {
+          kind: "node",
+          tag: "label",
+          attributes: [{ kind: "attribute", name: "for", value: "name" }],
+          children: [{ kind: "text", value: "Name" }]
+        },
+        {
+          kind: "node",
+          tag: "input",
+          attributes: [
+            { kind: "property", name: "id", value: "name" },
+            { kind: "property", name: "name", value: "name" },
+            { kind: "property", name: "type", value: "text" },
+            { kind: "property", name: "value", value: "Ada" },
+            { kind: "property", name: "placeholder", value: "Your name" },
+            { kind: "property", name: "disabled", value: false }
+          ],
+          children: []
+        },
+        {
+          kind: "node",
+          tag: "textarea",
+          attributes: [
+            { kind: "property", name: "name", value: "bio" },
+            { kind: "property", name: "defaultValue", value: "Hello" }
+          ],
+          children: []
+        },
+        {
+          kind: "node",
+          tag: "select",
+          attributes: [
+            { kind: "property", name: "name", value: "choice" },
+            { kind: "property", name: "value", value: "b" }
+          ],
+          children: [
+            {
+              kind: "node",
+              tag: "option",
+              attributes: [{ kind: "property", name: "value", value: "a" }],
+              children: [{ kind: "text", value: "A" }]
+            },
+            {
+              kind: "node",
+              tag: "option",
+              attributes: [{ kind: "property", name: "value", value: "b" }],
+              children: [{ kind: "text", value: "B" }]
+            }
+          ]
+        }
       ]
     });
   });

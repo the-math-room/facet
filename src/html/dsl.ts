@@ -1,4 +1,4 @@
-import type { UiAlgebra, UiOf } from "../core/ui";
+import type { Key, UiAlgebra, UiOf } from "../core/ui";
 import {
   type HtmlAttribute,
   type HtmlAttributeAny,
@@ -8,6 +8,10 @@ import {
   on,
   prop
 } from "./html";
+
+type AttributeValue = string | number | boolean;
+type OptionalAttributeValue = AttributeValue | null | undefined;
+type AttributeRecord = Readonly<Record<string, OptionalAttributeValue>>;
 
 export type HtmlDslArg<Ui, Event> =
   | HtmlAttribute<Event>
@@ -19,23 +23,6 @@ export type HtmlDslArg<Ui, Event> =
   | undefined
   | readonly HtmlDslArg<Ui, Event>[];
 
-/**
- * Thin authoring DSL for HTML-shaped UI.
- *
- * This layer does not introduce a new runtime model. It only lowers a more
- * ergonomic mixed argument style into the existing UiAlgebra operations.
- *
- * Examples:
- *
- *   const H = htmlDsl(TreeAlgebra);
- *
- *   H.button(
- *     H.className("primary"),
- *     H.prop("type", "button"),
- *     H.on("click", () => ({ type: "Clicked" })),
- *     "Click"
- *   )
- */
 export function htmlDsl<Ui>(
   A: UiAlgebra<Ui, HtmlTag, HtmlAttributeAny>
 ) {
@@ -66,9 +53,87 @@ export function htmlDsl<Ui>(
       return A.concat(parseArgs(A, children).children);
     },
 
+    fragment<Event>(
+      ...children: readonly HtmlDslArg<Ui, Event>[]
+    ): UiOf<Ui, Event> {
+      return A.concat(parseArgs(A, children).children);
+    },
+
+    when<Event>(
+      condition: boolean,
+      child: HtmlDslArg<Ui, Event>
+    ): UiOf<Ui, Event> {
+      if (!condition) {
+        return A.empty();
+      }
+
+      return A.concat(parseArgs(A, [child]).children);
+    },
+
+    unless<Event>(
+      condition: boolean,
+      child: HtmlDslArg<Ui, Event>
+    ): UiOf<Ui, Event> {
+      if (condition) {
+        return A.empty();
+      }
+
+      return A.concat(parseArgs(A, [child]).children);
+    },
+
+    maybe<Value, Event>(
+      value: Value | null | undefined,
+      view: (value: Value) => HtmlDslArg<Ui, Event>
+    ): UiOf<Ui, Event> {
+      if (value === null || value === undefined) {
+        return A.empty();
+      }
+
+      return A.concat(parseArgs(A, [view(value)]).children);
+    },
+
+    list<Value, Event>(
+      values: readonly Value[],
+      view: (value: Value, index: number) => HtmlDslArg<Ui, Event>
+    ): UiOf<Ui, Event> {
+      return A.concat(
+        parseArgs(
+          A,
+          values.map((value, index) => view(value, index))
+        ).children
+      );
+    },
+
+    keyedList<Value, Event>(
+      values: readonly Value[],
+      key: (value: Value, index: number) => Key,
+      view: (value: Value, index: number) => HtmlDslArg<Ui, Event>
+    ): UiOf<Ui, Event> {
+      const children = values.map((value, index) => {
+        const parsed = parseArgs(A, [view(value, index)]);
+
+        if (parsed.children.length !== 1) {
+          throw new Error("keyedList view must produce exactly one child.");
+        }
+
+        return A.keyed(
+          key(value, index),
+          parsed.children[0]!
+        );
+      });
+
+      return A.concat(children);
+    },
+
     keyed: A.keyed.bind(A),
     memo: A.memo.bind(A),
     mapEvent: A.mapEvent.bind(A),
+
+    mapEvents<AEvent, BEvent>(
+      map: (event: AEvent) => BEvent
+    ): (ui: UiOf<Ui, AEvent>) => UiOf<Ui, BEvent> {
+      return (ui) => A.mapEvent(ui, map);
+    },
 
     attr,
     prop,
@@ -76,24 +141,200 @@ export function htmlDsl<Ui>(
     cls: className,
     on,
 
-    div: node("div"),
-    span: node("span"),
+    onSubmit<Event>(
+      decode: () => Event | null
+    ): HtmlAttribute<Event> {
+      return on("submit", (event) => {
+        event.preventDefault();
+        return decode();
+      });
+    },
+
+    onInput<Event>(
+      decode: (event: globalThis.Event) => Event | null
+    ): HtmlAttribute<Event> {
+      return on("input", decode);
+    },
+
+    onTextInput<Event>(
+      decode: (value: string) => Event | null
+    ): HtmlAttribute<Event> {
+      return on("input", (event) => {
+        const target = event.target;
+
+        if (isTextValueTarget(target)) {
+          return decode(target.value);
+        }
+
+        return null;
+      });
+    },
+
+    onCheckedChange<Event>(
+      decode: (checked: boolean) => Event | null
+    ): HtmlAttribute<Event> {
+      return on("change", (event) => {
+        const target = event.target;
+
+        if (isCheckedTarget(target)) {
+          return decode(target.checked);
+        }
+
+        return null;
+      });
+    },
+
+    id: propertyHelper("id"),
+    title: propertyHelper("title"),
+    type: propertyHelper("type"),
+    name: propertyHelper("name"),
+    value: propertyHelper("value"),
+    defaultValue: propertyHelper("defaultValue"),
+    checked: propertyHelper("checked"),
+    defaultChecked: propertyHelper("defaultChecked"),
+    disabled: propertyHelper("disabled"),
+    selected: propertyHelper("selected"),
+    placeholder: propertyHelper("placeholder"),
+
+    href: attributeHelper("href"),
+    target: attributeHelper("target"),
+    rel: attributeHelper("rel"),
+    src: attributeHelper("src"),
+    alt: attributeHelper("alt"),
+    role: attributeHelper("role"),
+    aria: prefixedAttributes("aria"),
+    data: prefixedAttributes("data"),
+    styleAttr: attributeHelper("style"),
+
+    a: node("a"),
+    abbr: node("abbr"),
+    address: node("address"),
+    article: node("article"),
+    aside: node("aside"),
+    b: node("b"),
+    blockquote: node("blockquote"),
+    br: node("br"),
     button: node("button"),
-    input: node("input"),
+    caption: node("caption"),
+    cite: node("cite"),
+    code: node("code"),
+    col: node("col"),
+    colgroup: node("colgroup"),
+    dd: node("dd"),
+    del: node("del"),
+    details: node("details"),
+    dfn: node("dfn"),
+    dialog: node("dialog"),
+    div: node("div"),
+    dl: node("dl"),
+    dt: node("dt"),
+    em: node("em"),
+    fieldset: node("fieldset"),
+    figcaption: node("figcaption"),
+    figure: node("figure"),
+    footer: node("footer"),
     form: node("form"),
-    label: node("label"),
-    ul: node("ul"),
-    ol: node("ol"),
-    li: node("li"),
-    p: node("p"),
     h1: node("h1"),
     h2: node("h2"),
     h3: node("h3"),
-    section: node("section"),
-    main: node("main"),
+    h4: node("h4"),
+    h5: node("h5"),
+    h6: node("h6"),
     header: node("header"),
-    footer: node("footer")
+    hr: node("hr"),
+    i: node("i"),
+    img: node("img"),
+    input: node("input"),
+    ins: node("ins"),
+    kbd: node("kbd"),
+    label: node("label"),
+    legend: node("legend"),
+    li: node("li"),
+    main: node("main"),
+    mark: node("mark"),
+    meter: node("meter"),
+    nav: node("nav"),
+    ol: node("ol"),
+    optgroup: node("optgroup"),
+    option: node("option"),
+    output: node("output"),
+    p: node("p"),
+    picture: node("picture"),
+    pre: node("pre"),
+    progress: node("progress"),
+    q: node("q"),
+    s: node("s"),
+    samp: node("samp"),
+    section: node("section"),
+    select: node("select"),
+    small: node("small"),
+    source: node("source"),
+    span: node("span"),
+    strong: node("strong"),
+    sub: node("sub"),
+    summary: node("summary"),
+    sup: node("sup"),
+    table: node("table"),
+    tbody: node("tbody"),
+    td: node("td"),
+    textarea: node("textarea"),
+    tfoot: node("tfoot"),
+    th: node("th"),
+    thead: node("thead"),
+    time: node("time"),
+    tr: node("tr"),
+    u: node("u"),
+    ul: node("ul"),
+    var: node("var"),
+    video: node("video"),
+    wbr: node("wbr")
   };
+}
+
+function propertyHelper(
+  name: string
+): <Event>(value: unknown) => HtmlAttribute<Event> {
+  return (value) => prop(name, value);
+}
+
+function attributeHelper(
+  name: string
+): <Event>(value: AttributeValue) => HtmlAttribute<Event> {
+  return (value) => attr(name, String(value));
+}
+
+function prefixedAttributes(
+  prefix: string
+) {
+  function helper<Event>(
+    name: string,
+    value: AttributeValue
+  ): HtmlAttribute<Event>;
+
+  function helper<Event>(
+    values: AttributeRecord
+  ): readonly HtmlAttribute<Event>[];
+
+  function helper<Event>(
+    nameOrValues: string | AttributeRecord,
+    value?: AttributeValue
+  ): HtmlAttribute<Event> | readonly HtmlAttribute<Event>[] {
+    if (typeof nameOrValues === "string") {
+      if (value === undefined) {
+        return [];
+      }
+
+      return attr(`${prefix}-${nameOrValues}`, String(value));
+    }
+
+    return Object.entries(nameOrValues)
+      .filter(([, entryValue]) => entryValue !== null && entryValue !== undefined)
+      .map(([entryName, entryValue]) =>
+        attr<Event>(`${prefix}-${entryName}`, String(entryValue))
+      );
+  }
+
+  return helper;
 }
 
 function parseArgs<Ui, Event>(
@@ -104,6 +345,7 @@ function parseArgs<Ui, Event>(
   readonly children: readonly UiOf<Ui, Event>[];
 } {
   const attributes: HtmlAttribute<Event>[] = [];
+  const classes: string[] = [];
   const children: UiOf<Ui, Event>[] = [];
 
   const push = (arg: HtmlDslArg<Ui, Event>): void => {
@@ -129,7 +371,12 @@ function parseArgs<Ui, Event>(
     }
 
     if (isHtmlAttribute(arg)) {
-      attributes.push(arg as HtmlAttribute<Event>);
+      if (arg.kind === "class") {
+        classes.push(arg.value);
+      } else {
+        attributes.push(arg as HtmlAttribute<Event>);
+      }
+
       return;
     }
 
@@ -140,8 +387,17 @@ function parseArgs<Ui, Event>(
     push(arg);
   }
 
+  const classValue = classes
+    .flatMap((value) => value.split(/\s+/))
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+    .join(" ");
+
   return {
-    attributes,
+    attributes:
+      classValue.length === 0
+        ? attributes
+        : [className<Event>(classValue), ...attributes],
     children
   };
 }
@@ -163,4 +419,20 @@ function isHtmlAttribute(value: unknown): value is HtmlAttribute<unknown> {
     kind === "class" ||
     kind === "event"
   );
+}
+
+function isTextValueTarget(
+  target: EventTarget | null
+): target is HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
+  );
+}
+
+function isCheckedTarget(
+  target: EventTarget | null
+): target is HTMLInputElement {
+  return target instanceof HTMLInputElement;
 }

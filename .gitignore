@@ -19,3 +19,7 @@ facet-context.md
 /scripts/cleanup-*.sh
 /scripts/add-html-dsl.sh
 /scripts/use-dsl-*.sh
+/scripts/expand-html-*.sh
+/scripts/update-docs-*.sh
+/scripts/add-dsl-ergonomic-*.sh
+/scripts/add-dsl-conditional-*.sh

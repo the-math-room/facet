@@ -1,9 +1,140 @@
 import { describe, expect, it } from "vitest";
 import { html, on, prop } from "../src/html/html";
+import { htmlDsl } from "../src/html/dsl";
 import { DomRenderer } from "../src/dom/render";
 import { TreeAlgebra } from "../src/tree/tree-ui";
 
 describe("DomRenderer", () => {
+  it("DSL keyedList preserves keyed DOM nodes across reorder", () => {
+    const H = htmlDsl(TreeAlgebra);
+    const root = document.createElement("div");
+
+    const view = (items: readonly { readonly id: string; readonly label: string }[]) =>
+      H.ul(
+        H.keyedList(
+          items,
+          (item) => item.id,
+          (item) => H.li(item.label)
+        )
+      );
+
+    const mounted = DomRenderer.mount(
+      root,
+      view([
+        { id: "a", label: "A" },
+        { id: "b", label: "B" },
+        { id: "c", label: "C" }
+      ]),
+      () => {}
+    );
+
+    const before = Array.from(root.querySelectorAll("li"));
+
+    DomRenderer.patch(
+      mounted,
+      view([
+        { id: "c", label: "C" },
+        { id: "a", label: "A" },
+        { id: "b", label: "B" }
+      ]),
+      () => {}
+    );
+
+    const after = Array.from(root.querySelectorAll("li"));
+
+    expect(after.map((node) => node.textContent)).toEqual(["C", "A", "B"]);
+    expect(after[0]).toBe(before[2]);
+    expect(after[1]).toBe(before[0]);
+    expect(after[2]).toBe(before[1]);
+  });
+
+
+  it("DSL onSubmit prevents default and dispatches decoded events", () => {
+    const H = htmlDsl(TreeAlgebra);
+    const root = document.createElement("div");
+    const events: string[] = [];
+
+    DomRenderer.mount(
+      root,
+      H.form(
+        H.onSubmit(() => "submitted"),
+        H.button(H.type("submit"), "Submit")
+      ),
+      (event: unknown) => events.push(String(event))
+    );
+
+    const form = root.querySelector("form");
+    expect(form).not.toBeNull();
+
+    const submit = new SubmitEvent("submit", {
+      bubbles: true,
+      cancelable: true
+    });
+
+    const notCanceled = form!.dispatchEvent(submit);
+
+    expect(notCanceled).toBe(false);
+    expect(submit.defaultPrevented).toBe(true);
+    expect(events).toEqual(["submitted"]);
+  });
+
+  it("DSL onTextInput extracts text values", () => {
+    const H = htmlDsl(TreeAlgebra);
+    const root = document.createElement("div");
+    const events: string[] = [];
+
+    DomRenderer.mount(
+      root,
+      H.input(
+        H.value("before"),
+        H.onTextInput((text) => text)
+      ),
+      (event: unknown) => events.push(String(event))
+    );
+
+    const input = root.querySelector("input");
+    expect(input).not.toBeNull();
+
+    input!.value = "after";
+    input!.dispatchEvent(
+      new InputEvent("input", {
+        bubbles: true,
+        composed: true
+      })
+    );
+
+    expect(events).toEqual(["after"]);
+  });
+
+  it("DSL onCheckedChange extracts checkbox checked state", () => {
+    const H = htmlDsl(TreeAlgebra);
+    const root = document.createElement("div");
+    const events: boolean[] = [];
+
+    DomRenderer.mount(
+      root,
+      H.input(
+        H.type("checkbox"),
+        H.onCheckedChange((checked) => checked)
+      ),
+      (event: boolean) => events.push(event)
+    );
+
+    const input = root.querySelector("input");
+    expect(input).not.toBeNull();
+
+    input!.checked = true;
+    input!.dispatchEvent(
+      new Event("change", {
+        bubbles: true,
+        composed: true
+      })
+    );
+
+    expect(events).toEqual([true]);
+  });
+
+
   it("renders text into the DOM", () => {
     const H = html(TreeAlgebra);
     const root = document.createElement("div");

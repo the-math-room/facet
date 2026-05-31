@@ -1,23 +1,88 @@
 import type { UiAlgebra, UiOf } from "../core/ui";
 
 export type HtmlTag =
-  | "div"
-  | "span"
+  | "a"
+  | "abbr"
+  | "address"
+  | "article"
+  | "aside"
+  | "b"
+  | "blockquote"
+  | "br"
   | "button"
-  | "input"
+  | "caption"
+  | "cite"
+  | "code"
+  | "col"
+  | "colgroup"
+  | "dd"
+  | "del"
+  | "details"
+  | "dfn"
+  | "dialog"
+  | "div"
+  | "dl"
+  | "dt"
+  | "em"
+  | "fieldset"
+  | "figcaption"
+  | "figure"
+  | "footer"
   | "form"
-  | "label"
-  | "ul"
-  | "ol"
-  | "li"
-  | "p"
   | "h1"
   | "h2"
   | "h3"
-  | "section"
-  | "main"
+  | "h4"
+  | "h5"
+  | "h6"
   | "header"
-  | "footer";
+  | "hr"
+  | "i"
+  | "img"
+  | "input"
+  | "ins"
+  | "kbd"
+  | "label"
+  | "legend"
+  | "li"
+  | "main"
+  | "mark"
+  | "meter"
+  | "nav"
+  | "ol"
+  | "optgroup"
+  | "option"
+  | "output"
+  | "p"
+  | "picture"
+  | "pre"
+  | "progress"
+  | "q"
+  | "s"
+  | "samp"
+  | "section"
+  | "select"
+  | "small"
+  | "source"
+  | "span"
+  | "strong"
+  | "sub"
+  | "summary"
+  | "sup"
+  | "table"
+  | "tbody"
+  | "td"
+  | "textarea"
+  | "tfoot"
+  | "th"
+  | "thead"
+  | "time"
+  | "tr"
+  | "u"
+  | "ul"
+  | "var"
+  | "video"
+  | "wbr";
 
 export type HtmlAttribute<Event> =
   | {
@@ -88,22 +153,87 @@ export function html<Ui>(
     memo: A.memo.bind(A),
     mapEvent: A.mapEvent.bind(A),
 
-    div: node("div"),
-    span: node("span"),
+    a: node("a"),
+    abbr: node("abbr"),
+    address: node("address"),
+    article: node("article"),
+    aside: node("aside"),
+    b: node("b"),
+    blockquote: node("blockquote"),
+    br: node("br"),
     button: node("button"),
-    input: node("input"),
+    caption: node("caption"),
+    cite: node("cite"),
+    code: node("code"),
+    col: node("col"),
+    colgroup: node("colgroup"),
+    dd: node("dd"),
+    del: node("del"),
+    details: node("details"),
+    dfn: node("dfn"),
+    dialog: node("dialog"),
+    div: node("div"),
+    dl: node("dl"),
+    dt: node("dt"),
+    em: node("em"),
+    fieldset: node("fieldset"),
+    figcaption: node("figcaption"),
+    figure: node("figure"),
+    footer: node("footer"),
     form: node("form"),
-    label: node("label"),
-    ul: node("ul"),
-    ol: node("ol"),
-    li: node("li"),
-    p: node("p"),
     h1: node("h1"),
     h2: node("h2"),
     h3: node("h3"),
-    section: node("section"),
-    main: node("main"),
+    h4: node("h4"),
+    h5: node("h5"),
+    h6: node("h6"),
     header: node("header"),
-    footer: node("footer")
+    hr: node("hr"),
+    i: node("i"),
+    img: node("img"),
+    input: node("input"),
+    ins: node("ins"),
+    kbd: node("kbd"),
+    label: node("label"),
+    legend: node("legend"),
+    li: node("li"),
+    main: node("main"),
+    mark: node("mark"),
+    meter: node("meter"),
+    nav: node("nav"),
+    ol: node("ol"),
+    optgroup: node("optgroup"),
+    option: node("option"),
+    output: node("output"),
+    p: node("p"),
+    picture: node("picture"),
+    pre: node("pre"),
+    progress: node("progress"),
+    q: node("q"),
+    s: node("s"),
+    samp: node("samp"),
+    section: node("section"),
+    select: node("select"),
+    small: node("small"),
+    source: node("source"),
+    span: node("span"),
+    strong: node("strong"),
+    sub: node("sub"),
+    summary: node("summary"),
+    sup: node("sup"),
+    table: node("table"),
+    tbody: node("tbody"),
+    td: node("td"),
+    textarea: node("textarea"),
+    tfoot: node("tfoot"),
+    th: node("th"),
+    thead: node("thead"),
+    time: node("time"),
+    tr: node("tr"),
+    u: node("u"),
+    ul: node("ul"),
+    var: node("var"),
+    video: node("video"),
+    wbr: node("wbr")
   };
 }

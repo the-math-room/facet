@@ -16,3 +16,4 @@ facet-context.md
 /scripts/optimize-keyed-*.sh
 /scripts/add-memo-*.sh
 /scripts/fix-*.sh
+/scripts/cleanup-*.sh

@@ -127,6 +127,18 @@ export function mapEventPreservesKeyedLaw<Ui, Tag, Attribute>(
   );
 }
 
+export function memoErasureLaw<Ui, Tag, Attribute>(
+  A: UiAlgebra<Ui, Tag, Attribute>,
+  eq: Eq<Ui>
+): boolean {
+  const child = A.text("memo child");
+
+  return eq(
+    A.memo("token", child),
+    child
+  );
+}
+
 /**
  * Backwards-compatible aliases while the project is young.
  */

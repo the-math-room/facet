@@ -40,13 +40,11 @@ type KeyedOldChild = {
   readonly key: Key;
   readonly frame: ChildFrame;
   readonly node: Node;
-  readonly oldIndex: number;
   used: boolean;
 };
 
 type DesiredChild = {
   readonly node: Node;
-  readonly oldIndex: number | null;
 };
 
 export type DomMounted = {
@@ -468,7 +466,6 @@ function pushFlattenedChildren(
   }
 }
 
-
 function pushFlattenedChild(
   result: ChildFrame[],
   child: Tree<unknown>,
@@ -617,7 +614,6 @@ function patchKeyedChildren(
       key: key ?? `__facet_unkeyed_${index}`,
       frame,
       node,
-      oldIndex: index,
       used: false
     };
 
@@ -651,8 +647,7 @@ function patchKeyedChildren(
       );
 
       desired.push({
-        node: patched,
-        oldIndex: match.oldIndex
+        node: patched
       });
 
       continue;
@@ -662,8 +657,7 @@ function patchKeyedChildren(
       node: renderTree(newFrame.tree, {
         delegation,
         pipeline: newFrame.pipeline
-      }),
-      oldIndex: null
+      })
     });
   }
 
@@ -673,20 +667,19 @@ function patchKeyedChildren(
     }
   }
 
-  reorderChildrenByLis(parent, desired);
+  reorderChildren(parent, desired);
 }
 
-
-function reorderChildrenByLis(
+function reorderChildren(
   parent: Element,
   desired: readonly DesiredChild[]
 ): void {
   /*
    * Correctness-first ordering pass.
    *
-   * This intentionally avoids the broken LIS skip path until the move-minimizing
-   * algorithm has stronger tests. It preserves identity while ensuring inserts,
-   * removals, and reorders produce the exact desired DOM order.
+   * This preserves identity while ensuring inserts, removals, and reorders
+   * produce the exact desired DOM order. A future move-minimizing pass can
+   * replace this once it has dedicated tests.
    */
   for (let index = 0; index < desired.length; index += 1) {
     const child = desired[index]!;
@@ -891,59 +884,6 @@ const numberProperties = new Set<string>([
   "rowSpan",
   "tabIndex"
 ]);
-
-function longestIncreasingSubsequenceIndexes(
-  values: readonly (number | null)[]
-): readonly number[] {
-  const predecessors = new Array<number>(values.length).fill(-1);
-  const tails: number[] = [];
-
-  for (let index = 0; index < values.length; index += 1) {
-    const value = values[index];
-
-    if (value === null || value === undefined) {
-      continue;
-    }
-
-    let low = 0;
-    let high = tails.length;
-
-    while (low < high) {
-      const mid = Math.floor((low + high) / 2);
-      const tailIndex = tails[mid];
-
-      if (tailIndex === undefined) {
-        break;
-      }
-
-      const tailValue = values[tailIndex];
-
-      if (tailValue !== null && tailValue !== undefined && tailValue < value) {
-        low = mid + 1;
-      } else {
-        high = mid;
-      }
-    }
-
-    if (low > 0) {
-      predecessors[index] = tails[low - 1]!;
-    }
-
-    tails[low] = index;
-  }
-
-  const result: number[] = [];
-  let current = tails[tails.length - 1];
-
-  while (current !== undefined && current !== -1) {
-    result.push(current);
-    current = predecessors[current];
-  }
-
-  result.reverse();
-
-  return result;
-}
 
 function applyAttributes(
   element: Element,

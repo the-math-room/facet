@@ -16,5 +16,6 @@ export {
   mapEventCompositionLaw,
   mapEventIdentityLaw,
   mapEventPreservesConcatLaw,
-  mapEventPreservesKeyedLaw
+  mapEventPreservesKeyedLaw,
+  memoErasureLaw
 } from "./laws";

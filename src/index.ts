@@ -16,7 +16,8 @@ export {
   mapEventCompositionLaw,
   mapEventIdentityLaw,
   mapEventPreservesConcatLaw,
-  mapEventPreservesKeyedLaw
+  mapEventPreservesKeyedLaw,
+  memoErasureLaw
 } from "./core";
 
 export type {

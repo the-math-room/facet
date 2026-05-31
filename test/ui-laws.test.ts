@@ -7,7 +7,8 @@ import {
   mapEventCompositionLaw,
   mapEventIdentityLaw,
   mapEventPreservesConcatLaw,
-  mapEventPreservesKeyedLaw
+  mapEventPreservesKeyedLaw,
+  memoErasureLaw
 } from "../src/core/laws";
 import {
   TreeAlgebra,
@@ -49,6 +50,10 @@ describe("UiAlgebra laws for TreeAlgebra", () => {
 
   it("satisfies mapEvent preserving keyed identity", () => {
     expect(mapEventPreservesKeyedLaw(TreeAlgebra, denotationalEq)).toBe(true);
+  });
+
+  it("satisfies memo erasure", () => {
+    expect(memoErasureLaw(TreeAlgebra, denotationalEq)).toBe(true);
   });
 
   it("memo is structurally equivalent to its child", () => {

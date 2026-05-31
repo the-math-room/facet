@@ -44,12 +44,13 @@ When optimizing the DOM renderer, preserve observable equivalence with the simpl
 
 ## Current renderer status
 
-The DOM renderer performs a conservative same-position reconciliation:
+The DOM renderer performs a conservative same-position reconciliation directly over the tree representation:
 
 - text nodes update in place
 - same-tag elements update in place
 - different tags are replaced
 - children are reconciled by position
+- lazy mapped-event nodes are evaluated during render/patch, without a separate resolved-tree allocation
 - full keyed child reordering is not implemented yet
 
 The next renderer milestones are:

@@ -81,6 +81,57 @@ describe("DomRenderer", () => {
     ]);
   });
 
+  it("dispatches patched mapped events without a resolved-tree pass", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    type ChildEvent = { readonly type: "ChildClicked" };
+    type ParentEvent =
+      | { readonly type: "Before"; readonly event: ChildEvent }
+      | { readonly type: "After"; readonly event: ChildEvent };
+
+    const child = H.button<ChildEvent>(
+      [on("click", () => ({ type: "ChildClicked" }))],
+      [H.text("Click")]
+    );
+
+    const before = H.mapEvent<ChildEvent, ParentEvent>(
+      child,
+      (event) => ({ type: "Before", event })
+    );
+
+    const after = H.mapEvent<ChildEvent, ParentEvent>(
+      child,
+      (event) => ({ type: "After", event })
+    );
+
+    const events: ParentEvent[] = [];
+
+    const mounted = DomRenderer.mount(
+      root,
+      before,
+      (event) => events.push(event)
+    );
+
+    DomRenderer.patch(
+      mounted,
+      after,
+      (event) => events.push(event)
+    );
+
+    const button = root.querySelector("button");
+    expect(button).not.toBeNull();
+
+    button!.click();
+
+    expect(events).toEqual([
+      {
+        type: "After",
+        event: { type: "ChildClicked" }
+      }
+    ]);
+  });
+
   it("patches same-tag nodes in place", () => {
     const H = html(TreeAlgebra);
     const root = document.createElement("div");

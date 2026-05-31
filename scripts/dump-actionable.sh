@@ -416,7 +416,7 @@ High-value next tasks:
 3. Expand the DOM reconciler:
    - keyed child reconciliation
    - better attribute/property removal semantics
-   - selection/cursor preservation tests
+   - more selection/cursor preservation tests
 4. Add event delegation so large lists do not create one listener per node.
 5. Add a semantic representation layer above concrete UI:
    - action

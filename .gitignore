@@ -7,3 +7,4 @@ facet-context.md
 /scripts/tmp.sh
 /scripts/update-*.sh
 /scripts/add-*.sh
+/scripts/remove-*.sh

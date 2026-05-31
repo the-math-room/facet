@@ -1,0 +1,29 @@
+{
+  "name": "facet",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A TypeScript toolkit for building interactive UI denotationally.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run test"
+  },
+  "keywords": [
+    "ui",
+    "denotational-design",
+    "typescript",
+    "vite",
+    "adt"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "jsdom": "^29.1.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.14",
+    "vitest": "^4.1.7"
+  }
+}

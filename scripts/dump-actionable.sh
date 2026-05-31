@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Dump actionable project context for review or LLM-assisted refactoring.
+# Dump project code and official repository docs for review.
 #
 # Usage:
 #   ./scripts/dump-actionable.sh
@@ -96,35 +96,9 @@ is_scratch_file() {
   esac
 }
 
-print_tree() {
+print_files() {
   if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git ls-files \
-      ':!:node_modules' \
-      ':!:dist' \
-      ':!:coverage' \
-      ':!:.git' \
-      ':!:*.log' \
-      | sort
-    git ls-files --others --exclude-standard \
-      ':!:node_modules' \
-      ':!:dist' \
-      ':!:coverage' \
-      ':!:.git' \
-      ':!:*.log' \
-      | sort
-    return 0
-  fi
-
-  find . \
-    \( -path './node_modules' -o -path './dist' -o -path './coverage' -o -path './.git' \) -prune \
-    -o -type f -print \
-    | sed 's#^\./##' \
-    | sort
-}
-
-tracked_or_relevant_files() {
-  {
-    if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    {
       git ls-files \
         ':!:node_modules' \
         ':!:dist' \
@@ -137,13 +111,19 @@ tracked_or_relevant_files() {
         ':!:coverage' \
         ':!:.git' \
         ':!:*.log'
-    else
-      find . \
-        \( -path './node_modules' -o -path './dist' -o -path './coverage' -o -path './.git' \) -prune \
-        -o -type f -print \
-        | sed 's#^\./##'
-    fi
-  } | sort -u | while IFS= read -r file; do
+    } | sort -u
+    return 0
+  fi
+
+  find . \
+    \( -path './node_modules' -o -path './dist' -o -path './coverage' -o -path './.git' \) -prune \
+    -o -type f -print \
+    | sed 's#^\./##' \
+    | sort -u
+}
+
+included_files() {
+  print_files | while IFS= read -r file; do
     if is_scratch_file "$file" && [ "$include_scratch" != "1" ]; then
       continue
     fi
@@ -156,7 +136,7 @@ tracked_or_relevant_files() {
         ;;
       node_modules/*|dist/*|coverage/*|.git/*|*.log)
         ;;
-      *.ts|*.tsx|*.js|*.jsx|*.json|*.css|*.html|*.md|*.yml|*.yaml|*.sh|.gitignore)
+      *.ts|*.tsx|*.js|*.jsx|*.cjs|*.mjs|*.json|*.css|*.html|*.md|*.yml|*.yaml|*.sh|.gitignore)
         printf '%s\n' "$file"
         ;;
     esac
@@ -164,113 +144,63 @@ tracked_or_relevant_files() {
 }
 
 {
-  echo "# Actionable project dump: ${PROJECT_NAME}"
+  echo "# Project dump: ${PROJECT_NAME}"
   echo
   echo "Generated at: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   echo
   echo "Project root: <PROJECT_ROOT>"
   echo
-  echo "Purpose: give a reviewer enough context to extend and refactor this project without needing hidden assumptions."
-  echo
-  echo "Recommended use:"
+  echo "Usage:"
   echo
   echo '```bash'
-  echo "./scripts/dump-actionable.sh > facet-context.md"
+  echo "./scripts/dump-actionable.sh > ${PROJECT_NAME}-context.md"
   echo '```'
 } | emit
 
-section "Project intent" | emit
-
-cat <<'INTENT' | emit
-Facet is a TypeScript toolkit for building interactive UI denotationally.
-
-Design stance:
-- Facet is a toolkit, not a full application framework.
-- The core should define an abstract UI algebra, not commit users to one representation.
-- Concrete representations and platform interpreters live outside the core.
-- Views should be pure denotations.
-- App meaning, state transitions, effects, routing, data fetching, forms, styling systems, and animation should remain outside the core unless deliberately added as separate packages/layers.
-- The current implementation is intentionally simple and law-oriented.
-INTENT
-
-section "Architecture map" | emit
-
-cat <<'ARCH' | emit
-Expected conceptual layers:
-
-1. Meaning layer
-   Domain model, business concepts, invariants, workflows.
-   Facet should not own this.
-
-2. Interaction/application layer
-   State transitions, update functions, event interpretation, commands/effects.
-   Facet should not own this in core.
-
-3. Representation layer
-   Pure projection from meaning/state to interactive UI denotation.
-   Facet provides the UI ADT used here.
-
-4. Representation implementation
-   One concrete implementation of the abstract UI algebra.
-   Current implementation: immutable tree.
-
-5. Platform interpreter
-   Interprets a UI denotation into a concrete target.
-   Current implementation: DOM renderer.
-
-6. Tooling ecosystem
-   Possible future packages: forms, resources, router, animation, devtools, server renderer, diffing DOM renderer.
-ARCH
-
-section "Privacy note" | emit
-
-cat <<'PRIVACY' | emit
-This dump is intended to be shareable with an LLM or reviewer.
-
-The script attempts to sanitize:
-- the user's home directory
-- the absolute project root
-
-Still review before sharing. Source files may contain secrets, names, paths, URLs, tokens, or other sensitive data that a generic sanitizer cannot safely infer.
-PRIVACY
-
-section "Current file tree" | emit
+section "File tree" | emit
 
 {
   printf '```txt\n'
-  print_tree | while IFS= read -r file; do
-    if is_scratch_file "$file" && [ "$include_scratch" != "1" ]; then
-      continue
-    fi
-
-    case "$file" in
-      package-lock.json|pnpm-lock.yaml|yarn.lock)
-        if [ "$include_lockfile" = "1" ]; then
-          printf '%s\n' "$file"
-        fi
-        ;;
-      *)
-        printf '%s\n' "$file"
-        ;;
-    esac
-  done
+  included_files
   printf '```\n'
 } | emit
 
-section "Package metadata" | emit
+section "Package and config files" | emit
 
-fence_file package.json
-fence_file tsconfig.json
-fence_file vite.config.ts
-fence_file vitest.config.ts
-fence_file index.html
-fence_file .gitignore
-fence_file README.md
-fence_file CONTRIBUTING.md
+for file in \
+  package.json \
+  tsconfig.json \
+  vite.config.ts \
+  vitest.config.ts \
+  index.html \
+  .gitignore
+do
+  fence_file "$file"
+done
+
+if [ "$include_lockfile" = "1" ]; then
+  for file in package-lock.json pnpm-lock.yaml yarn.lock; do
+    fence_file "$file"
+  done
+fi
+
+section "Official repository docs" | emit
+
+for file in \
+  README.md \
+  CONTRIBUTING.md \
+  CHANGELOG.md \
+  LICENSE \
+  LICENSE.md \
+  CODE_OF_CONDUCT.md \
+  SECURITY.md
+do
+  fence_file "$file"
+done
 
 section "Source files" | emit
 
-tracked_or_relevant_files | while IFS= read -r file; do
+included_files | while IFS= read -r file; do
   case "$file" in
     src/*)
       fence_file "$file"
@@ -280,7 +210,7 @@ done
 
 section "Test files" | emit
 
-tracked_or_relevant_files | while IFS= read -r file; do
+included_files | while IFS= read -r file; do
   case "$file" in
     test/*|tests/*|__tests__/*)
       fence_file "$file"
@@ -290,7 +220,7 @@ done
 
 section "Script files" | emit
 
-tracked_or_relevant_files | while IFS= read -r file; do
+included_files | while IFS= read -r file; do
   case "$file" in
     scripts/*)
       fence_file "$file"
@@ -310,7 +240,7 @@ else
   echo "Not a git repository, or git is unavailable." | emit
 fi
 
-section "Available npm scripts" | emit
+section "NPM scripts" | emit
 
 if command -v npm >/dev/null 2>&1; then
   {
@@ -383,53 +313,5 @@ if [ "$run_check" = "1" ]; then
   } 2>&1 | emit
 fi
 
-section "Actionable refactor guidance" | emit
-
-cat <<'GUIDANCE' | emit
-When extending or refactoring Facet, preserve these constraints unless intentionally changing the design:
-
-- Keep `src/core` representation-agnostic.
-- Do not import from `src/html`, `src/tree`, or `src/dom` inside `src/core`.
-- Keep app state and update functions outside the Facet core.
-- Prefer adding laws/tests before optimizing implementation.
-- Treat the tree representation as one model, not the definition of the toolkit.
-- Treat the DOM renderer as an interpreter, not as the semantic source of truth.
-- Avoid adding JSX, hooks, resources, routing, or effects to core prematurely.
-- If adding a feature, first ask which layer owns it:
-  - core ADT
-  - concrete representation
-  - interpreter
-  - example app shell
-  - separate toolkit package
-- If optimizing patch/diffing, preserve observable equivalence with the simple remounting renderer, except where explicit identity laws promise preservation.
-GUIDANCE
-
-section "Suggested next tasks" | emit
-
-cat <<'TASKS' | emit
-High-value next tasks:
-1. Add a test renderer that produces a normalized textual or JSON view.
-2. Add more ADT laws:
-   - keyed does not alter emitted events
-   - patch preserves same-tag identity where promised
-   - patch replaces different-tag identity
-3. Expand the DOM reconciler:
-   - keyed child reconciliation
-   - better attribute/property removal semantics
-   - more selection/cursor preservation tests
-4. Add event delegation so large lists do not create one listener per node.
-5. Add a semantic representation layer above concrete UI:
-   - action
-   - field
-   - region
-   - collection
-6. Initialize git and commit the v0 scaffold.
-7. Consider splitting packages after the seams stabilize:
-   - @facet/core
-   - @facet/tree
-   - @facet/dom
-   - @facet/test
-TASKS
-
 section "End" | emit
-echo "End of actionable project dump." | emit
+echo "End of project dump." | emit

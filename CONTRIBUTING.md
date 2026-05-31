@@ -74,12 +74,12 @@ The DOM renderer performs conservative same-position reconciliation directly ove
 - text nodes update in place
 - same-tag elements update in place
 - different tags are replaced
-- children are reconciled by position
+- unkeyed children are reconciled by position
+- keyed children are moved/reused across sibling reorders
 - events are delegated through one root listener per event type
-- full keyed child reordering is not implemented yet
 
 The next renderer milestones are:
 
-- keyed child reconciliation
 - better attribute/property semantics
 - explicit tests for form controls and selection preservation
+- optional subtree bailout/memoization

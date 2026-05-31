@@ -10,3 +10,4 @@ facet-context.md
 /scripts/remove-*.sh
 /scripts/tighten-*.sh
 /scripts/harden-*.sh
+/scripts/add-keyed-*.sh

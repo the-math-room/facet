@@ -380,6 +380,116 @@ describe("DomRenderer", () => {
     }
   });
 
+  it("reorders keyed children without replacing DOM nodes", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    const view = (order: readonly string[]) =>
+      H.ul(
+        [],
+        order.map((name) =>
+          H.keyed(
+            name,
+            H.li([], [H.text(name)])
+          )
+        )
+      );
+
+    const mounted = DomRenderer.mount(
+      root,
+      view(["A", "B", "C"]),
+      () => {}
+    );
+
+    const before = Array.from(root.querySelectorAll("li"));
+    expect(before.map((node) => node.textContent)).toEqual(["A", "B", "C"]);
+
+    DomRenderer.patch(
+      mounted,
+      view(["C", "A", "B"]),
+      () => {}
+    );
+
+    const after = Array.from(root.querySelectorAll("li"));
+
+    expect(after.map((node) => node.textContent)).toEqual(["C", "A", "B"]);
+    expect(after[0]).toBe(before[2]);
+    expect(after[1]).toBe(before[0]);
+    expect(after[2]).toBe(before[1]);
+  });
+
+  it("inserts keyed children while preserving existing keyed nodes", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    const view = (order: readonly string[]) =>
+      H.ul(
+        [],
+        order.map((name) =>
+          H.keyed(
+            name,
+            H.li([], [H.text(name)])
+          )
+        )
+      );
+
+    const mounted = DomRenderer.mount(
+      root,
+      view(["A", "C"]),
+      () => {}
+    );
+
+    const before = Array.from(root.querySelectorAll("li"));
+
+    DomRenderer.patch(
+      mounted,
+      view(["A", "B", "C"]),
+      () => {}
+    );
+
+    const after = Array.from(root.querySelectorAll("li"));
+
+    expect(after.map((node) => node.textContent)).toEqual(["A", "B", "C"]);
+    expect(after[0]).toBe(before[0]);
+    expect(after[2]).toBe(before[1]);
+  });
+
+  it("removes keyed children while preserving remaining keyed nodes", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    const view = (order: readonly string[]) =>
+      H.ul(
+        [],
+        order.map((name) =>
+          H.keyed(
+            name,
+            H.li([], [H.text(name)])
+          )
+        )
+      );
+
+    const mounted = DomRenderer.mount(
+      root,
+      view(["A", "B", "C"]),
+      () => {}
+    );
+
+    const before = Array.from(root.querySelectorAll("li"));
+
+    DomRenderer.patch(
+      mounted,
+      view(["C", "A"]),
+      () => {}
+    );
+
+    const after = Array.from(root.querySelectorAll("li"));
+
+    expect(after.map((node) => node.textContent)).toEqual(["C", "A"]);
+    expect(after[0]).toBe(before[2]);
+    expect(after[1]).toBe(before[0]);
+  });
+
   it("does not duplicate dispatched events after repeated patches", () => {
     const H = html(TreeAlgebra);
     const root = document.createElement("div");

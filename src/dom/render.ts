@@ -1,4 +1,4 @@
-import type { Dispatch, Renderer, UiOf } from "../core/ui";
+import type { Dispatch, Key, Renderer, UiOf } from "../core/ui";
 import type { HtmlAttribute } from "../html/html";
 import type { Tree, TreeUi } from "../tree/tree-ui";
 import { exposeTree } from "../tree/tree-ui";
@@ -30,6 +30,13 @@ type RenderContext = {
   readonly pipeline: EventPipeline;
 };
 
+type KeyedOldChild = {
+  readonly key: Key;
+  readonly frame: ChildFrame;
+  readonly node: Node;
+  used: boolean;
+};
+
 export type DomMounted = {
   readonly target: Element;
   readonly delegation: DelegationState;
@@ -51,13 +58,13 @@ export type DomMounted = {
  * - Lazy mapped-event nodes are evaluated during render/patch.
  * - Event maps are stored as flat pipelines, not nested closure chains.
  * - Same-tag elements patch in place.
+ * - Keyed children are moved/reused across sibling reorders.
  * - Events are delegated through one capture-phase root listener per event type.
  * - Delegated handlers are updated per element, so future subtree bailouts can
  *   preserve existing handlers instead of requiring a global event-table rebuild.
  *
  * Still intentionally not implemented:
  *
- * - full keyed child reordering
  * - subtree bailout/memoization
  * - advanced form control semantics
  */
@@ -331,6 +338,26 @@ function unwrapKeyed(tree: Tree<unknown>): Tree<unknown> {
   return tree;
 }
 
+function keyOfFrame(frame: ChildFrame): Key | null {
+  return keyOfTree(frame.tree);
+}
+
+function keyOfTree(tree: Tree<unknown>): Key | null {
+  if (tree.kind === "mapped") {
+    return keyOfTree(tree.child);
+  }
+
+  if (tree.kind === "keyed") {
+    return tree.key;
+  }
+
+  return null;
+}
+
+function childForPatching(frame: ChildFrame): Tree<unknown> {
+  return frame.tree;
+}
+
 function replaceNode(
   oldNode: Node,
   newTree: Tree<unknown>,
@@ -385,6 +412,25 @@ function patchChildren(
 ): void {
   const oldChildren = flattenChildren(oldChildrenRaw, oldPipeline);
   const newChildren = flattenChildren(newChildrenRaw, newPipeline);
+
+  if (hasAnyKey(oldChildren) || hasAnyKey(newChildren)) {
+    patchKeyedChildren(parent, oldChildren, newChildren, delegation);
+    return;
+  }
+
+  patchChildrenByPosition(parent, oldChildren, newChildren, delegation);
+}
+
+function hasAnyKey(children: readonly ChildFrame[]): boolean {
+  return children.some((child) => keyOfFrame(child) !== null);
+}
+
+function patchChildrenByPosition(
+  parent: Element,
+  oldChildren: readonly ChildFrame[],
+  newChildren: readonly ChildFrame[],
+  delegation: DelegationState
+): void {
   const existingNodes = Array.from(parent.childNodes);
   const length = Math.max(oldChildren.length, newChildren.length);
 
@@ -419,12 +465,96 @@ function patchChildren(
     ) {
       patchNode(
         existingNode,
-        oldChild.tree,
+        childForPatching(oldChild),
         oldChild.pipeline,
-        newChild.tree,
+        childForPatching(newChild),
         newChild.pipeline,
         delegation
       );
+    }
+  }
+}
+
+function patchKeyedChildren(
+  parent: Element,
+  oldChildren: readonly ChildFrame[],
+  newChildren: readonly ChildFrame[],
+  delegation: DelegationState
+): void {
+  const oldNodes = Array.from(parent.childNodes);
+  const oldKeyed = new Map<Key, KeyedOldChild>();
+  const oldUnkeyedQueue: KeyedOldChild[] = [];
+
+  for (let index = 0; index < oldChildren.length; index += 1) {
+    const frame = oldChildren[index];
+    const node = oldNodes[index];
+
+    if (frame === undefined || node === undefined) {
+      continue;
+    }
+
+    const key = keyOfFrame(frame);
+
+    const oldChild: KeyedOldChild = {
+      key: key ?? `__facet_unkeyed_${index}`,
+      frame,
+      node,
+      used: false
+    };
+
+    if (key === null) {
+      oldUnkeyedQueue.push(oldChild);
+    } else {
+      oldKeyed.set(key, oldChild);
+    }
+  }
+
+  const desiredNodes: Node[] = [];
+  let oldUnkeyedIndex = 0;
+
+  for (const newFrame of newChildren) {
+    const key = keyOfFrame(newFrame);
+    const match =
+      key === null
+        ? oldUnkeyedQueue[oldUnkeyedIndex++]
+        : oldKeyed.get(key);
+
+    if (match !== undefined) {
+      match.used = true;
+
+      const patched = patchNode(
+        match.node,
+        childForPatching(match.frame),
+        match.frame.pipeline,
+        childForPatching(newFrame),
+        newFrame.pipeline,
+        delegation
+      );
+
+      desiredNodes.push(patched);
+      continue;
+    }
+
+    desiredNodes.push(
+      renderTree(newFrame.tree, {
+        delegation,
+        pipeline: newFrame.pipeline
+      })
+    );
+  }
+
+  for (const oldChild of [...oldKeyed.values(), ...oldUnkeyedQueue]) {
+    if (!oldChild.used && oldChild.node.parentNode === parent) {
+      parent.removeChild(oldChild.node);
+    }
+  }
+
+  for (let index = 0; index < desiredNodes.length; index += 1) {
+    const node = desiredNodes[index]!;
+    const current = parent.childNodes[index];
+
+    if (current !== node) {
+      parent.insertBefore(node, current ?? null);
     }
   }
 }

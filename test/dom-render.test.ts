@@ -46,7 +46,7 @@ describe("DomRenderer", () => {
           )
         ]
       ),
-      (event) => events.push(event)
+      (event: unknown) => events.push(String(event))
     );
 
     expect(rootListenerCount).toBe(1);
@@ -56,6 +56,34 @@ describe("DomRenderer", () => {
     buttons[1]!.click();
 
     expect(events).toEqual(["first", "second"]);
+  });
+
+  it("uses capture-phase delegation for non-bubbling focus events", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+
+    try {
+      const events: string[] = [];
+
+      DomRenderer.mount(
+        root,
+        H.input<string>(
+          [on("focus", () => "focused")],
+          []
+        ),
+        (event: unknown) => events.push(String(event))
+      );
+
+      const input = root.querySelector("input");
+      expect(input).not.toBeNull();
+
+      input!.focus();
+
+      expect(events).toEqual(["focused"]);
+    } finally {
+      root.remove();
+    }
   });
 
   it("does not add duplicate delegated root listeners after patches", () => {
@@ -100,6 +128,34 @@ describe("DomRenderer", () => {
     expect(rootListenerCount).toBe(1);
   });
 
+  it("removes delegated handlers from a patched same-tag node", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+    const events: string[] = [];
+
+    const mounted = DomRenderer.mount(
+      root,
+      H.button(
+        [on("click", () => "clicked")],
+        [H.text("Click")]
+      ),
+      (event: unknown) => events.push(String(event))
+    );
+
+    DomRenderer.patch(
+      mounted,
+      H.button([], [H.text("Click")]),
+      (event: unknown) => events.push(String(event))
+    );
+
+    const button = root.querySelector("button");
+    expect(button).not.toBeNull();
+
+    button!.click();
+
+    expect(events).toEqual([]);
+  });
+
   it("dispatches lazily mapped events", () => {
     const H = html(TreeAlgebra);
     const root = document.createElement("div");
@@ -125,7 +181,7 @@ describe("DomRenderer", () => {
     DomRenderer.mount(
       root,
       parent,
-      (event) => events.push(event)
+      (event: ParentEvent) => events.push(event)
     );
 
     const button = root.querySelector("button");
@@ -139,6 +195,41 @@ describe("DomRenderer", () => {
         event: { type: "ChildClicked" }
       }
     ]);
+  });
+
+  it("dispatches nested mapped events in the correct order", () => {
+    const H = html(TreeAlgebra);
+    const root = document.createElement("div");
+
+    const base = H.button<number>(
+      [on("click", () => 1)],
+      [H.text("Click")]
+    );
+
+    const plusOne = H.mapEvent<number, number>(
+      base,
+      (value) => value + 1
+    );
+
+    const mapped = H.mapEvent<number, string>(
+      plusOne,
+      (value) => `value:${value}`
+    );
+
+    const events: string[] = [];
+
+    DomRenderer.mount(
+      root,
+      mapped,
+      (event: unknown) => events.push(String(event))
+    );
+
+    const button = root.querySelector("button");
+    expect(button).not.toBeNull();
+
+    button!.click();
+
+    expect(events).toEqual(["value:2"]);
   });
 
   it("dispatches patched mapped events", () => {
@@ -170,13 +261,13 @@ describe("DomRenderer", () => {
     const mounted = DomRenderer.mount(
       root,
       before,
-      (event) => events.push(event)
+      (event: ParentEvent) => events.push(event)
     );
 
     DomRenderer.patch(
       mounted,
       after,
-      (event) => events.push(event)
+      (event: ParentEvent) => events.push(event)
     );
 
     const button = root.querySelector("button");
@@ -300,7 +391,7 @@ describe("DomRenderer", () => {
         [on("click", () => "clicked")],
         [H.text("Click")]
       ),
-      (event) => events.push(event)
+      (event: unknown) => events.push(String(event))
     );
 
     DomRenderer.patch(
@@ -309,7 +400,7 @@ describe("DomRenderer", () => {
         [on("click", () => "clicked")],
         [H.text("Click")]
       ),
-      (event) => events.push(event)
+      (event: unknown) => events.push(String(event))
     );
 
     DomRenderer.patch(
@@ -318,7 +409,7 @@ describe("DomRenderer", () => {
         [on("click", () => "clicked")],
         [H.text("Click")]
       ),
-      (event) => events.push(event)
+      (event: unknown) => events.push(String(event))
     );
 
     const button = root.querySelector("button");

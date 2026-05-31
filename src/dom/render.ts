@@ -4,21 +4,22 @@ import type { Tree, TreeUi } from "../tree/tree-ui";
 import { exposeTree } from "../tree/tree-ui";
 
 type EventMap = (event: unknown) => unknown;
+type EventPipeline = readonly EventMap[];
 
 type ChildFrame = {
   readonly tree: Tree<unknown>;
-  readonly mapEvent: EventMap;
+  readonly pipeline: EventPipeline;
 };
 
 type DelegatedHandler = {
   readonly decode: (event: globalThis.Event) => unknown | null;
-  readonly mapEvent: EventMap;
+  readonly pipeline: EventPipeline;
 };
 
 type HandlerTable = WeakMap<Element, Map<string, readonly DelegatedHandler[]>>;
 
 type DelegationState = {
-  table: HandlerTable;
+  readonly table: HandlerTable;
   dispatch: Dispatch<unknown>;
   readonly target: Element;
   readonly rootListeners: Map<string, EventListener>;
@@ -26,7 +27,7 @@ type DelegationState = {
 
 type RenderContext = {
   readonly delegation: DelegationState;
-  readonly mapEvent: EventMap;
+  readonly pipeline: EventPipeline;
 };
 
 export type DomMounted = {
@@ -39,20 +40,25 @@ export type DomMounted = {
 /**
  * DOM interpreter.
  *
- * This renderer is intentionally scoped to one responsibility: interpret a
- * Facet HTML tree into DOM nodes and keep those nodes reconciled.
+ * Facet's DOM renderer has one job: interpret an HTML tree denotation into DOM
+ * nodes and keep those nodes reconciled.
  *
- * It does not own app state, effects, routing, forms, resources, or styling.
+ * It intentionally does not own app state, effects, routing, forms, resources,
+ * validation, persistence, animation, or styling systems.
  *
  * Performance-oriented choices:
  *
  * - Lazy mapped-event nodes are evaluated during render/patch.
+ * - Event maps are stored as flat pipelines, not nested closure chains.
  * - Same-tag elements patch in place.
- * - Events are delegated through one root listener per event type.
+ * - Events are delegated through one capture-phase root listener per event type.
+ * - Delegated handlers are updated per element, so future subtree bailouts can
+ *   preserve existing handlers instead of requiring a global event-table rebuild.
  *
  * Still intentionally not implemented:
  *
  * - full keyed child reordering
+ * - subtree bailout/memoization
  * - advanced form control semantics
  */
 export const DomRenderer: Renderer<TreeUi, Element, DomMounted> = {
@@ -74,7 +80,7 @@ export const DomRenderer: Renderer<TreeUi, Element, DomMounted> = {
 
     const root = renderTree(tree, {
       delegation,
-      mapEvent: identity
+      pipeline: []
     });
 
     target.appendChild(root);
@@ -92,7 +98,6 @@ export const DomRenderer: Renderer<TreeUi, Element, DomMounted> = {
     next: UiOf<TreeUi, Event>,
     dispatch: Dispatch<Event>
   ): DomMounted {
-    mounted.delegation.table = new WeakMap();
     mounted.delegation.dispatch = dispatch as Dispatch<unknown>;
 
     const nextTree = exposeTree(next) as Tree<unknown>;
@@ -100,9 +105,9 @@ export const DomRenderer: Renderer<TreeUi, Element, DomMounted> = {
     const nextRoot = patchNode(
       mounted.root,
       mounted.tree,
-      identity,
+      [],
       nextTree,
-      identity,
+      [],
       mounted.delegation
     );
 
@@ -114,24 +119,32 @@ export const DomRenderer: Renderer<TreeUi, Element, DomMounted> = {
 
   unmount(mounted: DomMounted): void {
     for (const [eventName, listener] of mounted.delegation.rootListeners) {
-      mounted.target.removeEventListener(eventName, listener);
+      mounted.target.removeEventListener(eventName, listener, { capture: true });
     }
 
     mounted.delegation.rootListeners.clear();
-    mounted.delegation.table = new WeakMap();
     mounted.target.textContent = "";
   }
 };
 
-function identity(event: unknown): unknown {
-  return event;
+function applyPipeline(
+  pipeline: EventPipeline,
+  event: unknown
+): unknown {
+  let current = event;
+
+  for (let index = pipeline.length - 1; index >= 0; index -= 1) {
+    current = pipeline[index]!(current);
+  }
+
+  return current;
 }
 
-function composeMap(
-  outer: EventMap,
-  inner: EventMap
-): EventMap {
-  return (event) => outer(inner(event));
+function appendMap(
+  pipeline: EventPipeline,
+  map: EventMap
+): EventPipeline {
+  return [...pipeline, map];
 }
 
 function renderTree(
@@ -148,7 +161,7 @@ function renderTree(
     case "mapped":
       return renderTree(tree.child, {
         ...context,
-        mapEvent: composeMap(context.mapEvent, tree.map)
+        pipeline: appendMap(context.pipeline, tree.map)
       });
 
     case "keyed":
@@ -157,11 +170,11 @@ function renderTree(
     case "concat": {
       const fragment = document.createDocumentFragment();
 
-      for (const frame of flattenChildren(tree.children, context.mapEvent)) {
+      for (const frame of flattenChildren(tree.children, context.pipeline)) {
         fragment.appendChild(
           renderTree(frame.tree, {
             ...context,
-            mapEvent: frame.mapEvent
+            pipeline: frame.pipeline
           })
         );
       }
@@ -191,11 +204,11 @@ function appendChildren(
   children: readonly Tree<unknown>[],
   context: RenderContext
 ): void {
-  for (const frame of flattenChildren(children, context.mapEvent)) {
+  for (const frame of flattenChildren(children, context.pipeline)) {
     parent.appendChild(
       renderTree(frame.tree, {
         ...context,
-        mapEvent: frame.mapEvent
+        pipeline: frame.pipeline
       })
     );
   }
@@ -204,18 +217,18 @@ function appendChildren(
 function patchNode(
   node: Node,
   oldTree: Tree<unknown>,
-  oldMap: EventMap,
+  oldPipeline: EventPipeline,
   newTree: Tree<unknown>,
-  newMap: EventMap,
+  newPipeline: EventPipeline,
   delegation: DelegationState
 ): Node {
   if (oldTree.kind === "mapped") {
     return patchNode(
       node,
       oldTree.child,
-      composeMap(oldMap, oldTree.map),
+      appendMap(oldPipeline, oldTree.map),
       newTree,
-      newMap,
+      newPipeline,
       delegation
     );
   }
@@ -224,24 +237,29 @@ function patchNode(
     return patchNode(
       node,
       oldTree,
-      oldMap,
+      oldPipeline,
       newTree.child,
-      composeMap(newMap, newTree.map),
+      appendMap(newPipeline, newTree.map),
       delegation
     );
   }
 
   if (oldTree.kind === "keyed" && newTree.kind === "keyed") {
     if (oldTree.key !== newTree.key) {
-      return replaceNode(node, newTree.child as Tree<unknown>, newMap, delegation);
+      return replaceNode(
+        node,
+        newTree.child as Tree<unknown>,
+        newPipeline,
+        delegation
+      );
     }
 
     return patchNode(
       node,
       oldTree.child as Tree<unknown>,
-      oldMap,
+      oldPipeline,
       newTree.child as Tree<unknown>,
-      newMap,
+      newPipeline,
       delegation
     );
   }
@@ -250,7 +268,7 @@ function patchNode(
     return replaceNode(
       node,
       unwrapKeyed(newTree),
-      newMap,
+      newPipeline,
       delegation
     );
   }
@@ -275,7 +293,7 @@ function patchNode(
   ) {
     const context: RenderContext = {
       delegation,
-      mapEvent: newMap
+      pipeline: newPipeline
     };
 
     applyAttributes(
@@ -288,9 +306,9 @@ function patchNode(
     patchChildren(
       node,
       oldTree.children,
-      oldMap,
+      oldPipeline,
       newTree.children,
-      newMap,
+      newPipeline,
       delegation
     );
 
@@ -300,7 +318,7 @@ function patchNode(
   return replaceNode(
     node,
     unwrapKeyed(newTree),
-    newMap,
+    newPipeline,
     delegation
   );
 }
@@ -316,12 +334,12 @@ function unwrapKeyed(tree: Tree<unknown>): Tree<unknown> {
 function replaceNode(
   oldNode: Node,
   newTree: Tree<unknown>,
-  newMap: EventMap,
+  newPipeline: EventPipeline,
   delegation: DelegationState
 ): Node {
   const newNode = renderTree(newTree, {
     delegation,
-    mapEvent: newMap
+    pipeline: newPipeline
   });
 
   if (oldNode.parentNode !== null) {
@@ -333,24 +351,24 @@ function replaceNode(
 
 function flattenChildren(
   children: readonly Tree<unknown>[],
-  mapEvent: EventMap
+  pipeline: EventPipeline
 ): readonly ChildFrame[] {
   const result: ChildFrame[] = [];
 
   for (const child of children) {
     if (child.kind === "concat") {
-      result.push(...flattenChildren(child.children, mapEvent));
+      result.push(...flattenChildren(child.children, pipeline));
       continue;
     }
 
     if (child.kind === "mapped") {
-      result.push(...flattenChildren([child.child], composeMap(mapEvent, child.map)));
+      result.push(...flattenChildren([child.child], appendMap(pipeline, child.map)));
       continue;
     }
 
     result.push({
       tree: child,
-      mapEvent
+      pipeline
     });
   }
 
@@ -360,13 +378,13 @@ function flattenChildren(
 function patchChildren(
   parent: Element,
   oldChildrenRaw: readonly Tree<unknown>[],
-  oldMap: EventMap,
+  oldPipeline: EventPipeline,
   newChildrenRaw: readonly Tree<unknown>[],
-  newMap: EventMap,
+  newPipeline: EventPipeline,
   delegation: DelegationState
 ): void {
-  const oldChildren = flattenChildren(oldChildrenRaw, oldMap);
-  const newChildren = flattenChildren(newChildrenRaw, newMap);
+  const oldChildren = flattenChildren(oldChildrenRaw, oldPipeline);
+  const newChildren = flattenChildren(newChildrenRaw, newPipeline);
   const existingNodes = Array.from(parent.childNodes);
   const length = Math.max(oldChildren.length, newChildren.length);
 
@@ -379,7 +397,7 @@ function patchChildren(
       parent.appendChild(
         renderTree(newChild.tree, {
           delegation,
-          mapEvent: newChild.mapEvent
+          pipeline: newChild.pipeline
         })
       );
       continue;
@@ -402,9 +420,9 @@ function patchChildren(
       patchNode(
         existingNode,
         oldChild.tree,
-        oldChild.mapEvent,
+        oldChild.pipeline,
         newChild.tree,
-        newChild.mapEvent,
+        newChild.pipeline,
         delegation
       );
     }
@@ -417,7 +435,9 @@ function applyAttributes(
   newAttributes: readonly HtmlAttribute<unknown>[],
   context: RenderContext
 ): void {
-  removeOldAttributes(element, oldAttributes, newAttributes);
+  const nextHandlers = new Map<string, DelegatedHandler[]>();
+
+  removeOldAttributes(element, oldAttributes, newAttributes, context.delegation);
 
   for (const attribute of newAttributes) {
     switch (attribute.kind) {
@@ -433,38 +453,35 @@ function applyAttributes(
         Reflect.set(element, attribute.name, attribute.value);
         break;
 
-      case "event":
-        registerDelegatedHandler(
-          element,
-          attribute.name,
-          {
-            decode: attribute.decode,
-            mapEvent: context.mapEvent
-          },
-          context.delegation
-        );
+      case "event": {
+        const handlers = nextHandlers.get(attribute.name) ?? [];
+
+        handlers.push({
+          decode: attribute.decode,
+          pipeline: context.pipeline
+        });
+
+        nextHandlers.set(attribute.name, handlers);
+        ensureRootListener(attribute.name, context.delegation);
         break;
+      }
     }
   }
+
+  setElementHandlers(element, nextHandlers, context.delegation);
 }
 
-function registerDelegatedHandler(
+function setElementHandlers(
   element: Element,
-  eventName: string,
-  handler: DelegatedHandler,
+  nextHandlers: ReadonlyMap<string, readonly DelegatedHandler[]>,
   delegation: DelegationState
 ): void {
-  let handlersByEvent = delegation.table.get(element);
-
-  if (handlersByEvent === undefined) {
-    handlersByEvent = new Map();
-    delegation.table.set(element, handlersByEvent);
+  if (nextHandlers.size === 0) {
+    delegation.table.delete(element);
+    return;
   }
 
-  const current = handlersByEvent.get(eventName) ?? [];
-  handlersByEvent.set(eventName, [...current, handler]);
-
-  ensureRootListener(eventName, delegation);
+  delegation.table.set(element, new Map(nextHandlers));
 }
 
 function ensureRootListener(
@@ -476,9 +493,7 @@ function ensureRootListener(
   }
 
   const listener: EventListener = (event) => {
-    const path = event.composedPath();
-
-    for (const target of path) {
+    for (const target of event.composedPath()) {
       if (!(target instanceof Element)) {
         continue;
       }
@@ -486,14 +501,12 @@ function ensureRootListener(
       const handlersByEvent = delegation.table.get(target);
       const handlers = handlersByEvent?.get(event.type);
 
-      if (handlers === undefined) {
-        continue;
-      }
-
-      for (const handler of handlers) {
-        const decoded = handler.decode(event);
-        if (decoded !== null) {
-          delegation.dispatch(handler.mapEvent(decoded));
+      if (handlers !== undefined) {
+        for (const handler of handlers) {
+          const decoded = handler.decode(event);
+          if (decoded !== null) {
+            delegation.dispatch(applyPipeline(handler.pipeline, decoded));
+          }
         }
       }
 
@@ -503,14 +516,15 @@ function ensureRootListener(
     }
   };
 
-  delegation.target.addEventListener(eventName, listener);
+  delegation.target.addEventListener(eventName, listener, { capture: true });
   delegation.rootListeners.set(eventName, listener);
 }
 
 function removeOldAttributes(
   element: Element,
   oldAttributes: readonly HtmlAttribute<unknown>[],
-  newAttributes: readonly HtmlAttribute<unknown>[]
+  newAttributes: readonly HtmlAttribute<unknown>[],
+  delegation: DelegationState
 ): void {
   for (const oldAttribute of oldAttributes) {
     switch (oldAttribute.kind) {
@@ -548,6 +562,21 @@ function removeOldAttributes(
         break;
 
       case "event":
+        if (
+          !newAttributes.some(
+            (attribute) =>
+              attribute.kind === "event" &&
+              attribute.name === oldAttribute.name
+          )
+        ) {
+          const handlersByEvent = delegation.table.get(element);
+          handlersByEvent?.delete(oldAttribute.name);
+
+          if (handlersByEvent?.size === 0) {
+            delegation.table.delete(element);
+          }
+        }
+
         break;
     }
   }

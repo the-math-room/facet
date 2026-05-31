@@ -408,23 +408,27 @@ section "Suggested next tasks" | emit
 
 cat <<'TASKS' | emit
 High-value next tasks:
-1. Add a formal core barrel export from `src/core/index.ts`.
-2. Add package-level barrel exports from `src/index.ts`.
-3. Add more ADT laws:
-   - concat identity on both sides
-   - mapEvent preserves concat
-   - mapEvent preserves keyed identity
+1. Add a test renderer that produces a normalized textual or JSON view.
+2. Add more ADT laws:
    - keyed does not alter emitted events
-4. Add a test renderer that produces a normalized textual or JSON view.
-5. Split `DomTag` into a generic node/tag abstraction so non-DOM renderers are not second-class.
-6. Add a semantic representation layer above concrete UI:
+   - patch preserves same-tag identity where promised
+   - patch replaces different-tag identity
+3. Expand the DOM reconciler:
+   - keyed child reconciliation
+   - better attribute/property removal semantics
+   - selection/cursor preservation tests
+4. Add event delegation so large lists do not create one listener per node.
+5. Add a semantic representation layer above concrete UI:
    - action
    - field
    - region
    - collection
-7. Add a smarter DOM renderer only after the current laws are explicit.
-8. Initialize git and commit the v0 scaffold.
-9. Add `CONTRIBUTING.md` explaining design boundaries.
+6. Initialize git and commit the v0 scaffold.
+7. Consider splitting packages after the seams stabilize:
+   - @facet/core
+   - @facet/tree
+   - @facet/dom
+   - @facet/test
 TASKS
 
 section "End" | emit

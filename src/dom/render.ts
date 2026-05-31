@@ -9,18 +9,47 @@ type ListenerRecord = {
   readonly listener: EventListener;
 };
 
+type ResolvedTree =
+  | { readonly kind: "empty" }
+  | { readonly kind: "text"; readonly value: string }
+  | {
+      readonly kind: "node";
+      readonly tag: string;
+      readonly attributes: readonly HtmlAttribute<unknown>[];
+      readonly children: readonly ResolvedTree[];
+    }
+  | {
+      readonly kind: "concat";
+      readonly children: readonly ResolvedTree[];
+    }
+  | {
+      readonly kind: "keyed";
+      readonly key: string | number;
+      readonly child: ResolvedTree;
+    };
+
 export type DomMounted = {
-  readonly root: Node;
   readonly target: Element;
-  readonly listeners: readonly ListenerRecord[];
+  readonly listeners: ListenerRecord[];
+  root: Node;
+  tree: ResolvedTree;
 };
 
 /**
- * A deliberately simple DOM interpreter.
+ * DOM interpreter.
  *
- * patch currently remounts the whole tree. This keeps v0 semantically clear.
- * The next renderer pass should introduce diffing because remounting loses
- * native DOM state such as focus, selection, cursor position, and input state.
+ * This renderer now performs a small same-position reconciliation instead of
+ * remounting the entire tree on every patch. It is intentionally conservative:
+ *
+ * - Same text nodes are updated in place.
+ * - Same-tag elements are updated in place.
+ * - Different node kinds/tags are replaced.
+ * - Children are reconciled by position.
+ * - `keyed` preserves/replaces identity only at the current node.
+ *
+ * This is not yet a full React-style keyed diff. The immediate goal is to
+ * preserve native DOM state for stable same-tag elements, especially focus,
+ * cursor position, and input identity.
  */
 export const DomRenderer: Renderer<TreeUi, Element, DomMounted> = {
   mount<Event>(
@@ -29,19 +58,23 @@ export const DomRenderer: Renderer<TreeUi, Element, DomMounted> = {
     dispatch: Dispatch<Event>
   ): DomMounted {
     const listeners: ListenerRecord[] = [];
-
-    target.textContent = "";
-    const node = renderTree(
+    const tree = resolveTree(
       exposeTree(ui) as Tree<unknown>,
-      dispatch as Dispatch<unknown>,
-      listeners,
       identity
     );
-    target.appendChild(node);
+
+    target.textContent = "";
+    const root = renderTree(
+      tree,
+      dispatch as Dispatch<unknown>,
+      listeners
+    );
+    target.appendChild(root);
 
     return {
-      root: node,
       target,
+      root,
+      tree,
       listeners
     };
   },
@@ -51,33 +84,29 @@ export const DomRenderer: Renderer<TreeUi, Element, DomMounted> = {
     next: UiOf<TreeUi, Event>,
     dispatch: Dispatch<Event>
   ): DomMounted {
-    for (const record of mounted.listeners) {
-      record.element.removeEventListener(record.eventName, record.listener);
-    }
+    removeAllListeners(mounted.listeners);
 
-    mounted.target.textContent = "";
-
-    const listeners: ListenerRecord[] = [];
-    const node = renderTree(
+    const nextTree = resolveTree(
       exposeTree(next) as Tree<unknown>,
-      dispatch as Dispatch<unknown>,
-      listeners,
       identity
     );
-    mounted.target.appendChild(node);
 
-    return {
-      root: node,
-      target: mounted.target,
-      listeners
-    };
+    const nextRoot = patchNode(
+      mounted.root,
+      mounted.tree,
+      nextTree,
+      dispatch as Dispatch<unknown>,
+      mounted.listeners
+    );
+
+    mounted.root = nextRoot;
+    mounted.tree = nextTree;
+
+    return mounted;
   },
 
   unmount(mounted: DomMounted): void {
-    for (const record of mounted.listeners) {
-      record.element.removeEventListener(record.eventName, record.listener);
-    }
-
+    removeAllListeners(mounted.listeners);
     mounted.target.textContent = "";
   }
 };
@@ -86,11 +115,85 @@ function identity(event: unknown): unknown {
   return event;
 }
 
-function renderTree(
+function removeAllListeners(listeners: ListenerRecord[]): void {
+  for (const record of listeners) {
+    record.element.removeEventListener(record.eventName, record.listener);
+  }
+
+  listeners.length = 0;
+}
+
+function resolveTree(
   tree: Tree<unknown>,
-  dispatch: Dispatch<unknown>,
-  listeners: ListenerRecord[],
   mapEvent: (event: unknown) => unknown
+): ResolvedTree {
+  switch (tree.kind) {
+    case "empty":
+      return { kind: "empty" };
+
+    case "text":
+      return { kind: "text", value: tree.value };
+
+    case "concat":
+      return {
+        kind: "concat",
+        children: tree.children.map((child) =>
+          resolveTree(child as Tree<unknown>, mapEvent)
+        )
+      };
+
+    case "keyed":
+      return {
+        kind: "keyed",
+        key: tree.key,
+        child: resolveTree(tree.child as Tree<unknown>, mapEvent)
+      };
+
+    case "mapped":
+      return resolveTree(
+        tree.child,
+        (event) => mapEvent(tree.map(event))
+      );
+
+    case "node":
+      return {
+        kind: "node",
+        tag: tree.tag,
+        attributes: tree.attributes.map((attribute) =>
+          resolveAttribute(
+            attribute as HtmlAttribute<unknown>,
+            mapEvent
+          )
+        ),
+        children: tree.children.map((child) =>
+          resolveTree(child as Tree<unknown>, mapEvent)
+        )
+      };
+  }
+}
+
+function resolveAttribute(
+  attribute: HtmlAttribute<unknown>,
+  mapEvent: (event: unknown) => unknown
+): HtmlAttribute<unknown> {
+  if (attribute.kind !== "event") {
+    return attribute;
+  }
+
+  return {
+    kind: "event",
+    name: attribute.name,
+    decode: (event) => {
+      const decoded = attribute.decode(event);
+      return decoded === null ? null : mapEvent(decoded);
+    }
+  };
+}
+
+function renderTree(
+  tree: ResolvedTree,
+  dispatch: Dispatch<unknown>,
+  listeners: ListenerRecord[]
 ): Node {
   switch (tree.kind) {
     case "empty":
@@ -102,92 +205,269 @@ function renderTree(
     case "concat": {
       const fragment = document.createDocumentFragment();
 
-      for (const child of tree.children) {
-        fragment.appendChild(
-          renderTree(child as Tree<unknown>, dispatch, listeners, mapEvent)
-        );
+      for (const child of flattenChildren(tree.children)) {
+        fragment.appendChild(renderTree(child, dispatch, listeners));
       }
 
       return fragment;
     }
 
     case "keyed":
-      return renderTree(
-        tree.child as Tree<unknown>,
-        dispatch,
-        listeners,
-        mapEvent
-      );
-
-    case "mapped":
-      return renderTree(
-        tree.child,
-        dispatch,
-        listeners,
-        (event) => mapEvent(tree.map(event))
-      );
+      return renderTree(tree.child, dispatch, listeners);
 
     case "node": {
       const element = document.createElement(tree.tag);
 
-      for (const attribute of tree.attributes) {
-        applyAttribute(
-          element,
-          attribute as HtmlAttribute<unknown>,
-          dispatch,
-          listeners,
-          mapEvent
-        );
-      }
-
-      for (const child of tree.children) {
-        element.appendChild(
-          renderTree(child as Tree<unknown>, dispatch, listeners, mapEvent)
-        );
-      }
+      applyAttributes(element, [], tree.attributes, dispatch, listeners);
+      appendChildren(element, tree.children, dispatch, listeners);
 
       return element;
     }
   }
 }
 
-function applyAttribute(
-  element: Element,
-  attribute: HtmlAttribute<unknown>,
+function appendChildren(
+  parent: Element,
+  children: readonly ResolvedTree[],
   dispatch: Dispatch<unknown>,
-  listeners: ListenerRecord[],
-  mapEvent: (event: unknown) => unknown
+  listeners: ListenerRecord[]
 ): void {
-  switch (attribute.kind) {
-    case "attribute":
-      element.setAttribute(attribute.name, attribute.value);
-      return;
+  for (const child of flattenChildren(children)) {
+    parent.appendChild(renderTree(child, dispatch, listeners));
+  }
+}
 
-    case "class":
-      element.className = attribute.value;
-      return;
+function patchNode(
+  node: Node,
+  oldTree: ResolvedTree,
+  newTree: ResolvedTree,
+  dispatch: Dispatch<unknown>,
+  listeners: ListenerRecord[]
+): Node {
+  const oldEffective = effectiveTree(oldTree);
+  const newEffective = effectiveTree(newTree);
 
-    case "property":
-      Reflect.set(element, attribute.name, attribute.value);
-      return;
+  if (
+    oldTree.kind === "keyed" &&
+    newTree.kind === "keyed" &&
+    oldTree.key !== newTree.key
+  ) {
+    return replaceNode(node, newEffective, dispatch, listeners);
+  }
 
-    case "event": {
-      const listener: EventListener = (event) => {
-        const decoded = attribute.decode(event);
-        if (decoded !== null) {
-          dispatch(mapEvent(decoded));
+  if (
+    oldEffective.kind === "empty" &&
+    newEffective.kind === "empty"
+  ) {
+    return node;
+  }
+
+  if (
+    oldEffective.kind === "text" &&
+    newEffective.kind === "text"
+  ) {
+    if (node.nodeValue !== newEffective.value) {
+      node.nodeValue = newEffective.value;
+    }
+
+    return node;
+  }
+
+  if (
+    oldEffective.kind === "node" &&
+    newEffective.kind === "node" &&
+    oldEffective.tag === newEffective.tag &&
+    node instanceof Element
+  ) {
+    applyAttributes(
+      node,
+      oldEffective.attributes,
+      newEffective.attributes,
+      dispatch,
+      listeners
+    );
+
+    patchChildren(
+      node,
+      oldEffective.children,
+      newEffective.children,
+      dispatch,
+      listeners
+    );
+
+    return node;
+  }
+
+  return replaceNode(node, newEffective, dispatch, listeners);
+}
+
+function replaceNode(
+  oldNode: Node,
+  newTree: ResolvedTree,
+  dispatch: Dispatch<unknown>,
+  listeners: ListenerRecord[]
+): Node {
+  const newNode = renderTree(newTree, dispatch, listeners);
+
+  if (oldNode.parentNode !== null) {
+    oldNode.parentNode.replaceChild(newNode, oldNode);
+  }
+
+  return newNode;
+}
+
+function effectiveTree(tree: ResolvedTree): ResolvedTree {
+  if (tree.kind === "keyed") {
+    return effectiveTree(tree.child);
+  }
+
+  return tree;
+}
+
+function flattenChildren(
+  children: readonly ResolvedTree[]
+): readonly ResolvedTree[] {
+  const result: ResolvedTree[] = [];
+
+  for (const child of children) {
+    if (child.kind === "concat") {
+      result.push(...flattenChildren(child.children));
+    } else {
+      result.push(child);
+    }
+  }
+
+  return result;
+}
+
+function patchChildren(
+  parent: Element,
+  oldChildrenRaw: readonly ResolvedTree[],
+  newChildrenRaw: readonly ResolvedTree[],
+  dispatch: Dispatch<unknown>,
+  listeners: ListenerRecord[]
+): void {
+  const oldChildren = flattenChildren(oldChildrenRaw);
+  const newChildren = flattenChildren(newChildrenRaw);
+  const existingNodes = Array.from(parent.childNodes);
+  const length = Math.max(oldChildren.length, newChildren.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const oldChild = oldChildren[index];
+    const newChild = newChildren[index];
+    const existingNode = existingNodes[index];
+
+    if (oldChild === undefined && newChild !== undefined) {
+      parent.appendChild(renderTree(newChild, dispatch, listeners));
+      continue;
+    }
+
+    if (
+      oldChild !== undefined &&
+      newChild === undefined &&
+      existingNode !== undefined
+    ) {
+      parent.removeChild(existingNode);
+      continue;
+    }
+
+    if (
+      oldChild !== undefined &&
+      newChild !== undefined &&
+      existingNode !== undefined
+    ) {
+      patchNode(existingNode, oldChild, newChild, dispatch, listeners);
+    }
+  }
+}
+
+function applyAttributes(
+  element: Element,
+  oldAttributes: readonly HtmlAttribute<unknown>[],
+  newAttributes: readonly HtmlAttribute<unknown>[],
+  dispatch: Dispatch<unknown>,
+  listeners: ListenerRecord[]
+): void {
+  removeOldAttributes(element, oldAttributes, newAttributes);
+
+  for (const attribute of newAttributes) {
+    switch (attribute.kind) {
+      case "attribute":
+        element.setAttribute(attribute.name, attribute.value);
+        break;
+
+      case "class":
+        element.className = attribute.value;
+        break;
+
+      case "property":
+        Reflect.set(element, attribute.name, attribute.value);
+        break;
+
+      case "event": {
+        const listener: EventListener = (event) => {
+          const decoded = attribute.decode(event);
+          if (decoded !== null) {
+            dispatch(decoded);
+          }
+        };
+
+        element.addEventListener(attribute.name, listener);
+
+        listeners.push({
+          element,
+          eventName: attribute.name,
+          listener
+        });
+
+        break;
+      }
+    }
+  }
+}
+
+function removeOldAttributes(
+  element: Element,
+  oldAttributes: readonly HtmlAttribute<unknown>[],
+  newAttributes: readonly HtmlAttribute<unknown>[]
+): void {
+  for (const oldAttribute of oldAttributes) {
+    switch (oldAttribute.kind) {
+      case "attribute":
+        if (
+          !newAttributes.some(
+            (attribute) =>
+              attribute.kind === "attribute" &&
+              attribute.name === oldAttribute.name
+          )
+        ) {
+          element.removeAttribute(oldAttribute.name);
         }
-      };
 
-      element.addEventListener(attribute.name, listener);
+        break;
 
-      listeners.push({
-        element,
-        eventName: attribute.name,
-        listener
-      });
+      case "class":
+        if (!newAttributes.some((attribute) => attribute.kind === "class")) {
+          element.removeAttribute("class");
+        }
 
-      return;
+        break;
+
+      case "property":
+        if (
+          !newAttributes.some(
+            (attribute) =>
+              attribute.kind === "property" &&
+              attribute.name === oldAttribute.name
+          )
+        ) {
+          Reflect.set(element, oldAttribute.name, undefined);
+        }
+
+        break;
+
+      case "event":
+        break;
     }
   }
 }

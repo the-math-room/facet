@@ -29,3 +29,5 @@ facet-context.md
 /scripts/add-boundary-*.sh
 /scripts/add-string-*.sh
 /scripts/add-adt-testing-*.sh
+/scripts/add-runtime-*.sh
+/scripts/consolidate-public-*.sh

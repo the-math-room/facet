@@ -85,3 +85,14 @@ export {
   queryByTag,
   queryByText
 } from "./testing";
+
+export type {
+  AppConfig,
+  RunningApp,
+  Transition
+} from "./runtime";
+
+export {
+  runApp,
+  transition
+} from "./runtime";

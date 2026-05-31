@@ -143,3 +143,37 @@ button:disabled {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+textarea {
+  width: 100%;
+  min-height: 6rem;
+  resize: vertical;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font: inherit;
+}
+
+pre {
+  max-width: 100%;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-radius: 1rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+code {
+  font-family:
+    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.9rem;
+}
+
+
+.card > .task-label {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}

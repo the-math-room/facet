@@ -4,6 +4,8 @@ Facet is a TypeScript toolkit for building interactive UI denotationally.
 
 See docs/LAYERS.md for the meaning/projection/representation/interpretation split.
 
+See docs/PROJECT_STATE.md for the current stop point and next options.
+
 ## Single responsibility
 
 Facet's responsibility is narrow:

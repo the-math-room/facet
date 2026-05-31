@@ -32,3 +32,5 @@ facet-context.md
 /scripts/add-runtime-*.sh
 /scripts/consolidate-public-*.sh
 /scripts/update-architecture-docs.sh
+/scripts/add-workbench-*.sh
+/scripts/wrap-up-*.sh
